@@ -1543,7 +1543,7 @@ def main():
             "⚛️ Molécula teórica (RDF)",
             "🌈 Espectros Raman",
             "🔍 Comparación con NH₃",
-            "🧬 RMN vs NH₃",
+            "🧬 IR/Raman vs NH₃",
             "📉 Desplazamientos químicos"
         ])
         
