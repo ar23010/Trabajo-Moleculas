@@ -1,3 +1,4 @@
+
 import os
 import sys
 import subprocess
@@ -5,6 +6,9 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 import time
+
+# Ruta del ejecutable de ORCA (personalizable por el usuario)
+ORCA_BIN = "/home/jonathan/Trabajos de Orca/orca-6.1.0-f.0_linux_x86-64/bin/orca"
 
 class OrcaOutputGenerator:
     """
@@ -22,22 +26,30 @@ class OrcaOutputGenerator:
         # Crear carpeta de salida
         self.base_out_dir.mkdir(exist_ok=True)
         
+
     def _find_orca(self) -> Optional[str]:
-        """Busca el ejecutable de ORCA en el sistema."""
-        # Posibles ubicaciones de ORCA
+        """Busca el ejecutable de ORCA en el sistema o usa ruta personalizada."""
+        # Si el usuario define ORCA_BIN, usar esa ruta
+        if ORCA_BIN:
+            if os.path.isfile(ORCA_BIN) and os.access(ORCA_BIN, os.X_OK):
+                print(f"✅ ORCA personalizado encontrado en: {ORCA_BIN}")
+                return ORCA_BIN
+            else:
+                print(f"❌ Ruta personalizada de ORCA no válida: {ORCA_BIN}")
+                return None
+        # Si no, buscar en ubicaciones comunes y PATH
         possible_paths = [
             "/opt/orca/orca",
-            "/usr/local/bin/orca", 
+            "/usr/local/bin/orca",
             "/usr/bin/orca",
             "orca"  # Si está en PATH
         ]
-        
         for path in possible_paths:
-            if shutil.which(path):
-                print(f"✅ ORCA encontrado en: {path}")
-                return path
-                
-        print("⚠️  ORCA no encontrado. Asegúrate de que esté instalado y en PATH.")
+            found = shutil.which(path)
+            if found:
+                print(f"✅ ORCA encontrado en: {found}")
+                return found
+        print("⚠️  ORCA no encontrado. Asegúrate de que esté instalado y en PATH o define ORCA_BIN.")
         return None
         
     def _run_orca_calculation(self, inp_file: Path, out_dir: Path) -> bool:
@@ -60,13 +72,16 @@ class OrcaOutputGenerator:
             
             print(f"🔄 Ejecutando cálculo ORCA: {inp_file.name}")
             
-            # Ejecutar ORCA
-            cmd = [self.orca_path, str(inp_copy)]
+            # Ejecutar ORCA con la ruta absoluta del archivo
+            cmd = [self.orca_path, inp_copy.name]  # Solo el nombre del archivo
+            
+            # Mostrar el comando que se va a ejecutar (debug)
+            print(f"📍 Ejecutando comando: {' '.join(cmd)} en directorio: {out_dir}")
             
             with open(out_file, "w") as f:
                 process = subprocess.run(
                     cmd,
-                    cwd=out_dir,
+                    cwd=str(out_dir),  # Convertir Path a string y ejecutar desde el directorio de salida
                     stdout=f,
                     stderr=subprocess.PIPE,
                     text=True,

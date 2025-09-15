@@ -60,9 +60,15 @@ orca_outputs/
 Si quieres ejecutar cálculos automáticamente:
 
 1. **Instalar ORCA** desde https://orcaforum.kofo.mpg.de
-2. **Agregar al PATH**:
+2. **Agregar al PATH** (usar comillas si la ruta tiene espacios):
    ```bash
-   export PATH=$PATH:/ruta/a/orca
+   export PATH="$PATH:/home/jonathan/Trabajos de Orca/orca-6.1.0-f.0_linux_x86-64/bin"
+   ```
+
+3. **Para hacerlo permanente**, agregar la línea al archivo `~/.bashrc`:
+   ```bash
+   echo 'export PATH="$PATH:/home/jonathan/Trabajos de Orca/orca-6.1.0-f.0_linux_x86-64/bin"' >> ~/.bashrc
+   source ~/.bashrc
    ```
 
 **⚠️ NOTA:** Sin ORCA, la app genera los archivos .inp que puedes ejecutar manualmente.

@@ -15,172 +15,364 @@ from collections import Counter
 from generate_inp import OrcaInputGenerator
 from generar_out import OrcaOutputGenerator
 
-#----- Gráfico del Modelo 3D NH3 -----
-def dibujar_nh3():
-    # ---------- Parámetros ----------
-    NH_LENGTH = 1.01
-    SHADOW_Z  = -0.55
-    COLORS = {
-        'N': '#1B5E20',
-        'H': '#A5D6A7',
-        'BOND': '#66BB6A'
+# ========== FUNCIONES PARA LEER ARCHIVOS ORCA .out ==========
+
+def parse_orca_coordinates(out_file_path):
+    """
+    Extrae las coordenadas finales de un archivo .out de ORCA.
+    Retorna (elements, coordinates) donde coordinates es np.array de forma (n, 3)
+    """
+    try:
+        with open(out_file_path, 'r') as f:
+            content = f.read()
+        
+        # Buscar la última sección de coordenadas optimizadas
+        if "CARTESIAN COORDINATES (ANGSTROEM)" in content:
+            # Para archivos de optimización
+            sections = content.split("CARTESIAN COORDINATES (ANGSTROEM)")
+            last_section = sections[-1]
+        elif "CARTESIAN COORDINATES (A.U.)" in content:
+            # Para otros tipos de cálculo
+            sections = content.split("CARTESIAN COORDINATES (A.U.)")
+            last_section = sections[-1]
+        else:
+            return [], np.array([])
+        
+        lines = last_section.split('\n')
+        elements = []
+        coords = []
+        
+        # Buscar líneas con coordenadas (formato: elemento x y z)
+        for line in lines[2:]:  # Saltar header
+            parts = line.strip().split()
+            if len(parts) >= 4:
+                try:
+                    element = parts[0]
+                    x, y, z = map(float, parts[1:4])
+                    elements.append(element)
+                    coords.append([x, y, z])
+                except (ValueError, IndexError):
+                    continue
+            elif line.strip() == "":
+                break
+        
+        return elements, np.array(coords) if coords else np.array([])
+        
+    except Exception as e:
+        print(f"Error leyendo archivo ORCA: {e}")
+        return [], np.array([])
+
+def parse_orca_frequencies(out_file_path):
+    """
+    Extrae frecuencias vibracionales e intensidades IR/Raman de un archivo .out de ORCA.
+    Retorna dict con datos de IR y Raman.
+    """
+    try:
+        with open(out_file_path, 'r') as f:
+            content = f.read()
+        
+        ir_data = []
+        raman_data = []
+        
+        # Buscar sección de frecuencias
+        if "VIBRATIONAL FREQUENCIES" in content:
+            freq_section = content.split("VIBRATIONAL FREQUENCIES")[1].split("NORMAL MODES")[0]
+            lines = freq_section.split('\n')
+            
+            for line in lines:
+                if "cm**-1" in line and "---" not in line:
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        try:
+                            mode = int(parts[0])
+                            freq = float(parts[1])
+                            ir_data.append({'Mode': mode, 'Frequency': freq})
+                        except (ValueError, IndexError):
+                            continue
+        
+        # Buscar intensidades IR
+        if "IR SPECTRUM" in content:
+            ir_section = content.split("IR SPECTRUM")[1]
+            if "Mode" in ir_section:
+                lines = ir_section.split('\n')
+                for line in lines:
+                    if line.strip() and not line.startswith('Mode') and ':' in line:
+                        try:
+                            parts = line.replace(':', '').split()
+                            if len(parts) >= 4:
+                                mode = int(parts[0])
+                                freq = float(parts[1])
+                                intensity = float(parts[3])  # T^2 (km/mol)
+                                
+                                # Actualizar datos IR existentes o agregar nuevos
+                                found = False
+                                for item in ir_data:
+                                    if item['Mode'] == mode:
+                                        item['Intensity'] = intensity
+                                        found = True
+                                        break
+                                if not found:
+                                    ir_data.append({'Mode': mode, 'Frequency': freq, 'Intensity': intensity})
+                        except (ValueError, IndexError):
+                            continue
+        
+        # Buscar datos Raman
+        if "RAMAN SPECTRUM" in content:
+            raman_section = content.split("RAMAN SPECTRUM")[1]
+            lines = raman_section.split('\n')
+            for line in lines:
+                if line.strip() and not line.startswith('Mode') and ':' in line:
+                    try:
+                        parts = line.replace(':', '').split()
+                        if len(parts) >= 3:
+                            mode = int(parts[0])
+                            freq = float(parts[1])
+                            activity = float(parts[2])
+                            raman_data.append({'Mode': mode, 'Frequency': freq, 'Activity': activity})
+                    except (ValueError, IndexError):
+                        continue
+        
+        return {
+            'ir': pd.DataFrame(ir_data),
+            'raman': pd.DataFrame(raman_data)
+        }
+        
+    except Exception as e:
+        print(f"Error leyendo frecuencias de ORCA: {e}")
+        return {'ir': pd.DataFrame(), 'raman': pd.DataFrame()}
+
+def get_molecule_outputs(molecule_name):
+    """
+    Retorna los paths a los archivos .out de ORCA para una molécula específica.
+    """
+    base_path = Path("orca_outputs") / molecule_name
+    
+    return {
+        'opt': base_path / f"{molecule_name}-opt.out",
+        'ir-raman': base_path / f"{molecule_name}-ir-raman.out", 
+        'nmr': base_path / f"{molecule_name}-nmr.out"
     }
-    RADII = {'N': 0.34, 'H': 0.18, 'BOND': 0.10}
 
-    # ---------- Utilidades geométricas ----------
-    def sphere_mesh(center, r=1.0, nu=36, nv=18):
-        u = np.linspace(0, 2*np.pi, nu)
-        v = np.linspace(0, np.pi, nv)
-        u, v = np.meshgrid(u, v)
-        x = center[0] + r*np.cos(u)*np.sin(v)
-        y = center[1] + r*np.sin(u)*np.sin(v)
-        z = center[2] + r*np.cos(v)
-        return x.ravel(), y.ravel(), z.ravel()
+def check_orca_outputs_exist(molecule_name):
+    """
+    Verifica qué archivos .out existen para una molécula.
+    """
+    outputs = get_molecule_outputs(molecule_name)
+    existing = {}
+    
+    for calc_type, path in outputs.items():
+        existing[calc_type] = path.exists()
+        
+    return existing
 
-    def cylinder_mesh(p0, p1, r=0.10, seg=36, slc=12):
-        p0 = np.asarray(p0, float); p1 = np.asarray(p1, float)
-        v = p1 - p0
-        L = np.linalg.norm(v)
-        if L == 0:
-            return np.array([]), np.array([]), np.array([])
-        v = v / L
-
-        a = np.array([1,0,0]) if abs(v[0]) < 0.9 else np.array([0,1,0])
-        n1 = np.cross(v, a); n1 /= np.linalg.norm(n1)
-        n2 = np.cross(v, n1); n2 /= np.linalg.norm(n2)
-
-        th = np.linspace(0, 2*np.pi, seg)
-        zz = np.linspace(0, L, slc)
-        th, zz = np.meshgrid(th, zz)
-
-        x = p0[0] + v[0]*zz + r*(n1[0]*np.cos(th) + n2[0]*np.sin(th))
-        y = p0[1] + v[1]*zz + r*(n1[1]*np.cos(th) + n2[1]*np.sin(th))
-        z = p0[2] + v[2]*zz + r*(n1[2]*np.cos(th) + n2[2]*np.sin(th))
-        return x.ravel(), y.ravel(), z.ravel()
-
-    # ---------- Piezas de la escena ----------
-    def add_shadow(fig, c, r, darkness=0.35):
-        t = np.linspace(0, 2*np.pi, 60)
-        x = c[0] + (r*1.25)*np.cos(t)
-        y = c[1] + (r*0.85)*np.sin(t)
-        z = np.full_like(x, SHADOW_Z)
-        fig.add_trace(go.Mesh3d(
+#----- Gráfico del Modelo 3D (DATOS REALES DE ORCA) -----
+def dibujar_molecula_3d(molecule_name):
+    """Visualización 3D de la molécula usando coordenadas optimizadas de ORCA"""
+    
+    # Verificar si existen archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    if not outputs['opt'].exists():
+        st.error(f"❌ No se encontró archivo de optimización: {outputs['opt']}")
+        st.info("💡 Ejecuta primero el procesamiento con ORCA para generar los archivos necesarios.")
+        return None
+    
+    # Leer coordenadas optimizadas
+    elements, coords = parse_orca_coordinates(outputs['opt'])
+    
+    if len(elements) == 0:
+        st.error("❌ No se pudieron leer las coordenadas del archivo ORCA")
+        return None
+    
+    # Colores por elemento
+    element_colors = {
+        'H': '#FFFFFF',   # Blanco
+        'C': '#404040',   # Gris oscuro  
+        'N': '#3050F8',   # Azul
+        'O': '#FF0D0D',   # Rojo
+        'F': '#90E050',   # Verde claro
+        'P': '#FF8000',   # Naranja
+        'S': '#FFFF30',   # Amarillo
+        'Cl': '#1FF01F',  # Verde
+        'Br': '#A62929',  # Marrón rojizo
+        'I': '#940094',   # Púrpura
+    }
+    
+    # Radios por elemento (van der Waals)
+    element_radii = {
+        'H': 0.31, 'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.64,
+        'P': 1.07, 'S': 1.05, 'Cl': 1.02, 'Br': 1.20, 'I': 1.39
+    }
+    
+    # Crear figura 3D
+    fig = go.Figure()
+    
+    # Función para crear esfera
+    def create_sphere(center, radius, color):
+        u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
+        x = radius * np.cos(u) * np.sin(v) + center[0]
+        y = radius * np.sin(u) * np.sin(v) + center[1] 
+        z = radius * np.cos(v) + center[2]
+        
+        return go.Surface(
             x=x, y=y, z=z,
-            color=f'rgba(10,10,10,{darkness:.3f})',
-            opacity=1.0, showscale=False, hoverinfo='skip',
-            i=None, j=None, k=None
-        ))
-
-    def add_atom(fig, pos, kind):
-        x, y, z = sphere_mesh(pos, RADII[kind], 40, 22)
-        fig.add_trace(go.Mesh3d(
-            x=x, y=y, z=z,
-            color=COLORS[kind],
-            opacity=1.0, alphahull=0, flatshading=False,
-            name=kind, hovertext=kind, hoverinfo='text'
-        ))
-
-    def add_bond(fig, p0, p1):
-        x, y, z = cylinder_mesh(p0, p1, RADII['BOND'])
-        fig.add_trace(go.Mesh3d(
-            x=x, y=y, z=z,
-            color=COLORS['BOND'],
-            opacity=1.0, name='bond', hoverinfo='skip'
-        ))
-
-    def add_plane(fig, size=2.6):
-        xx = np.linspace(-size, size, 2)
-        yy = np.linspace(-size, size, 2)
-        XX, YY = np.meshgrid(xx, yy)
-        ZZ = np.full_like(XX, SHADOW_Z - 0.002)
-        fig.add_trace(go.Surface(
-            x=XX, y=YY, z=ZZ,
-            showscale=False, opacity=0.08,
-            colorscale=[[0,'rgb(200,200,200)'],[1,'rgb(200,200,200)']],
+            colorscale=[[0, color], [1, color]],
+            showscale=False,
+            hoverinfo='skip',
+            opacity=0.9
+        )
+    
+    # Agregar átomos
+    for i, (element, coord) in enumerate(zip(elements, coords)):
+        color = element_colors.get(element, '#808080')  # Gris por defecto
+        radius = element_radii.get(element, 0.5)
+        
+        sphere = create_sphere(coord, radius, color)
+        fig.add_trace(sphere)
+        
+        # Agregar etiqueta del elemento
+        fig.add_trace(go.Scatter3d(
+            x=[coord[0]], y=[coord[1]], z=[coord[2]],
+            mode='text',
+            text=[f"{element}{i+1}"],
+            textposition="middle center",
+            textfont=dict(size=12, color='black'),
+            showlegend=False,
             hoverinfo='skip'
         ))
-
-    # ---------- Geometría NH3 ----------
-    base_dirs = np.array([
-        [ 1, -1, -1],
-        [-1,  1, -1],
-        [-1, -1,  1],
-    ], dtype=float)
-    base_dirs = base_dirs / np.linalg.norm(base_dirs, axis=1)[:, None] * NH_LENGTH
-
-    N = np.array([0.0, 0.0, 0.0])
-    H1, H2, H3 = base_dirs
-
-    # ---------- Construcción de la figura ----------
-    fig = go.Figure()
-
-    add_shadow(fig, N,  RADII['N'], darkness=0.45)
-    for H in (H1, H2, H3):
-        add_shadow(fig, H, RADII['H'], darkness=0.25)
-
-    add_atom(fig, N,  'N')
-    add_atom(fig, H1, 'H')
-    add_atom(fig, H2, 'H')
-    add_atom(fig, H3, 'H')
-
-    add_bond(fig, N, H1)
-    add_bond(fig, N, H2)
-    add_bond(fig, N, H3)
-
-    add_plane(fig)
-
+    
+    # Agregar enlaces (distancia < 1.8 Å entre átomos no-H, < 1.2 Å para H)
+    def create_cylinder(p1, p2, radius=0.1):
+        # Vector del enlace
+        vec = p2 - p1
+        length = np.linalg.norm(vec)
+        if length == 0:
+            return None
+            
+        # Crear cilindro
+        t = np.linspace(0, 1, 10)
+        points = np.outer(t, vec) + p1
+        
+        return go.Scatter3d(
+            x=points[:, 0], y=points[:, 1], z=points[:, 2],
+            mode='lines',
+            line=dict(width=8, color='gray'),
+            showlegend=False,
+            hoverinfo='skip'
+        )
+    
+    # Detectar y dibujar enlaces
+    for i in range(len(coords)):
+        for j in range(i+1, len(coords)):
+            dist = np.linalg.norm(coords[i] - coords[j])
+            
+            # Criterios de enlace
+            max_dist = 1.8
+            if elements[i] == 'H' or elements[j] == 'H':
+                max_dist = 1.2
+                
+            if dist < max_dist:
+                bond = create_cylinder(coords[i], coords[j])
+                if bond:
+                    fig.add_trace(bond)
+    
+    # Configurar layout
     fig.update_layout(
-        title="Amoniaco (NH₃) — vista 3D (tonos verdes)",
+        title=f"Molécula: {molecule_name} (Optimizada con ORCA)",
         scene=dict(
             xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
+            yaxis=dict(visible=False), 
             zaxis=dict(visible=False),
             aspectmode='data',
-            camera=dict(eye=dict(x=1.6, y=-1.2, z=0.9))
+            bgcolor='rgb(240, 240, 240)',
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5),
+                center=dict(x=0, y=0, z=0)
+            )
         ),
-        margin=dict(l=10, r=10, t=50, b=10),
+        margin=dict(l=0, r=0, t=50, b=0),
         showlegend=False,
+        height=600
     )
+    
     return fig
 
-#----- Espectro IR NH3 -----
-def dibujar_ir():
-    # ---------- Eje de número de onda (4000 → 400 cm⁻1) ----------
-    wavenumber = np.linspace(4000, 400, 2000)
-
-    # ---------- Función generadora de picos gaussianos ----------
-    def gauss(x, centro, ancho, intensidad):
-        return intensidad * np.exp(-0.5 * ((x - centro) / ancho) ** 2)
-
-    # ---------- Señales simuladas ----------
-    polyamide6 = (
-        gauss(wavenumber, 3300, 80, 1.0) +
-        gauss(wavenumber, 1630, 50, 0.8) +
-        gauss(wavenumber, 1540, 40, 0.6)
-    )
-
-    water = (
-        gauss(wavenumber, 3400, 120, 1.0) +
-        gauss(wavenumber, 1650, 80, 0.7)
-    )
-
-    mix = polyamide6 + 0.8 * water
-
-    # ---------- Gráfico ----------
+#----- Espectro IR (DATOS REALES DE ORCA) -----
+def dibujar_espectro_ir(molecule_name):
+    """Genera espectro IR usando datos reales de ORCA"""
+    
+    # Verificar archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    if not outputs['ir-raman'].exists():
+        st.error(f"❌ No se encontró archivo IR/Raman: {outputs['ir-raman']}")
+        st.info("💡 Ejecuta primero el cálculo IR/Raman con ORCA.")
+        return None
+    
+    # Leer datos de frecuencias
+    spectra_data = parse_orca_frequencies(outputs['ir-raman'])
+    ir_data = spectra_data['ir']
+    
+    if ir_data.empty:
+        st.warning("⚠️ No se encontraron datos IR en el archivo de ORCA")
+        return None
+    
+    # Crear el espectro
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    ax.plot(wavenumber, polyamide6, label="Poliamida 6", color="black", lw=1.4)
-    ax.plot(wavenumber, water, label="Agua", color="green", lw=1.4)
-    ax.plot(wavenumber, mix, label="Poliamida 6 + Agua", color="red", lw=1.4)
-
-    ax.invert_xaxis()
-
-    ax.set_title("Espectro IR simulado")
+    
+    if 'Frequency' in ir_data.columns and 'Intensity' in ir_data.columns:
+        # Espectro de líneas
+        frequencies = ir_data['Frequency'].values
+        intensities = ir_data['Intensity'].values
+        
+        # Crear espectro gaussiano suavizado
+        freq_range = np.linspace(max(frequencies) + 200, 400, 2000)  # Rango típico IR
+        spectrum = np.zeros_like(freq_range)
+        
+        for freq, intensity in zip(frequencies, intensities):
+            # Gaussiano centrado en cada frecuencia
+            gaussian = intensity * np.exp(-0.5 * ((freq_range - freq) / 15) ** 2)
+            spectrum += gaussian
+        
+        # Graficar espectro suavizado
+        ax.plot(freq_range, spectrum, 'b-', linewidth=1.5, label=f'IR {molecule_name}')
+        ax.fill_between(freq_range, spectrum, alpha=0.3)
+        
+        # Marcar picos principales
+        for freq, intensity in zip(frequencies, intensities):
+            if intensity > np.max(intensities) * 0.1:  # Solo picos significativos
+                ax.axvline(x=freq, color='red', linestyle='--', alpha=0.7, linewidth=1)
+                ax.text(freq, intensity * 1.1, f'{freq:.0f}', 
+                       rotation=90, ha='center', va='bottom', fontsize=8)
+    else:
+        st.error("❌ Datos IR incompletos en el archivo ORCA")
+        return None
+    
+    # Configurar gráfico
+    ax.invert_xaxis()  # Típico en espectros IR
+    ax.set_title(f"Espectro IR - {molecule_name} (calculado con ORCA)")
     ax.set_xlabel("Número de onda (cm⁻¹)")
-    ax.set_ylabel("Absorbancia (a.u.)")
+    ax.set_ylabel("Intensidad (km/mol)")
     ax.legend()
     ax.grid(alpha=0.3)
-
+    
+    # Mostrar información adicional
+    st.subheader("📊 Información del espectro")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Modos vibracionales", len(ir_data))
+    with col2:
+        if 'Intensity' in ir_data.columns:
+            st.metric("Intensidad máxima", f"{ir_data['Intensity'].max():.2f} km/mol")
+    with col3:
+        if 'Frequency' in ir_data.columns:
+            st.metric("Frecuencia máxima", f"{ir_data['Frequency'].max():.0f} cm⁻¹")
+    
+    # Mostrar tabla de datos
+    if st.checkbox("Ver tabla de frecuencias"):
+        st.dataframe(ir_data, use_container_width=True)
+    
     return fig
 
 #----- Gráfico Optimizado -----
@@ -281,8 +473,135 @@ def dibujar_conjunto_nh3():
     )
     return fig
 
-#----- Gráfico del Modelo 2D NH3 -----
-def dibujar_nh3_2d():
+#----- Gráfico del Modelo 2D (DATOS REALES DE ORCA) -----
+def dibujar_molecula_2d(molecule_name):
+    """Visualización 2D de la molécula usando coordenadas optimizadas de ORCA"""
+    
+    # Verificar si existen archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    if not outputs['opt'].exists():
+        st.error(f"❌ No se encontró archivo de optimización: {outputs['opt']}")
+        st.info("💡 Ejecuta primero el procesamiento con ORCA para generar los archivos necesarios.")
+        return None
+    
+    # Leer coordenadas optimizadas
+    elements, coords = parse_orca_coordinates(outputs['opt'])
+    
+    if len(elements) == 0:
+        st.error("❌ No se pudieron leer las coordenadas del archivo ORCA")
+        return None
+    
+    # Colores por elemento (más brillantes para 2D)
+    element_colors = {
+        'H': '#E0E0E0',   # Gris claro
+        'C': '#202020',   # Negro
+        'N': '#4070FF',   # Azul brillante
+        'O': '#FF4040',   # Rojo brillante
+        'F': '#90FF50',   # Verde brillante
+        'P': '#FFA040',   # Naranja
+        'S': '#FFFF40',   # Amarillo
+        'Cl': '#40FF40',  # Verde
+        'Br': '#C04040',  # Marrón rojizo
+        'I': '#B040B0',   # Púrpura
+    }
+    
+    # Radios por elemento (escalados para 2D)
+    element_radii = {
+        'H': 0.4, 'C': 0.8, 'N': 0.75, 'O': 0.7, 'F': 0.65,
+        'P': 1.1, 'S': 1.0, 'Cl': 1.05, 'Br': 1.25, 'I': 1.4
+    }
+    
+    # Proyectar a 2D (usar coordenadas X, Y)
+    x_coords = coords[:, 0]
+    y_coords = coords[:, 1]
+    
+    # Crear figura
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=120)
+    fig.patch.set_facecolor('#FAFAFA')
+    ax.set_facecolor('#FAFAFA')
+    
+    # Función para dibujar enlaces
+    def draw_bond(ax, p1, p2, bond_width=6):
+        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], 
+                color='#666666', linewidth=bond_width, 
+                solid_capstyle='round', zorder=1)
+        ax.plot([p1[0], p2[0]], [p1[1], p2[1]], 
+                color='#CCCCCC', linewidth=bond_width-2, 
+                solid_capstyle='round', zorder=1.1)
+    
+    # Dibujar enlaces (distancia < 1.8 Å)
+    for i in range(len(coords)):
+        for j in range(i+1, len(coords)):
+            dist = np.linalg.norm(coords[i] - coords[j])
+            
+            max_dist = 1.8
+            if elements[i] == 'H' or elements[j] == 'H':
+                max_dist = 1.2
+                
+            if dist < max_dist:
+                draw_bond(ax, coords[i][:2], coords[j][:2])
+    
+    # Función para dibujar átomos con efecto 3D
+    def draw_glossy_atom(ax, center, radius, face_color, edge_color):
+        # Sombra
+        shadow = plt.Circle((center[0]+0.15, center[1]-0.15), radius*1.05,
+                           facecolor='black', edgecolor='none', 
+                           alpha=0.2, zorder=0.5)
+        ax.add_patch(shadow)
+        
+        # Átomo principal
+        atom = plt.Circle(center, radius, 
+                         facecolor=face_color, edgecolor=edge_color,
+                         linewidth=3, zorder=2)
+        ax.add_patch(atom)
+        
+        # Brillos
+        highlight1 = plt.Circle((center[0]-radius*0.3, center[1]+radius*0.3), 
+                               radius*0.4, facecolor='white', 
+                               edgecolor='none', alpha=0.6, zorder=3)
+        ax.add_patch(highlight1)
+        
+        highlight2 = plt.Circle((center[0]-radius*0.15, center[1]+radius*0.15), 
+                               radius*0.2, facecolor='white', 
+                               edgecolor='none', alpha=0.8, zorder=3)
+        ax.add_patch(highlight2)
+    
+    # Dibujar átomos
+    for i, (element, coord) in enumerate(zip(elements, coords)):
+        face_color = element_colors.get(element, '#808080')
+        edge_color = face_color.replace('FF', 'CC').replace('40', '20')  # Color más oscuro
+        radius = element_radii.get(element, 0.6)
+        
+        draw_glossy_atom(ax, coord[:2], radius, face_color, edge_color)
+        
+        # Etiqueta del átomo
+        ax.text(coord[0], coord[1], f"{element}{i+1}",
+               ha='center', va='center', fontsize=12, fontweight='bold',
+               color='white' if element in ['C', 'N'] else 'black',
+               zorder=4)
+    
+    # Configurar ejes
+    margin = 2.0
+    ax.set_xlim(x_coords.min() - margin, x_coords.max() + margin)
+    ax.set_ylim(y_coords.min() - margin, y_coords.max() + margin)
+    ax.set_aspect('equal', adjustable='box')
+    
+    # Título y etiquetas
+    ax.set_title(f"Molécula: {molecule_name} (vista 2D)", fontsize=16, fontweight='bold', pad=20)
+    ax.set_xlabel("X (Angstrom)", fontsize=12)
+    ax.set_ylabel("Y (Angstrom)", fontsize=12)
+    
+    # Grid sutil
+    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
+    
+    # Información molecular en el gráfico
+    info_text = f"Átomos: {len(elements)}\nElementos: {', '.join(set(elements))}"
+    ax.text(0.02, 0.98, info_text, transform=ax.transAxes,
+           verticalalignment='top', bbox=dict(boxstyle='round', 
+           facecolor='white', alpha=0.8), fontsize=10)
+    
+    return fig
     # ---- Apariencia ----
     COL_N_FILL = "#1B5E20"
     COL_N_EDGE = "#0D3D0D"
@@ -1215,9 +1534,9 @@ def main():
         option = st.sidebar.radio("Selecciona una sección:", [
             "📋 Información de la molécula",
             "🔄 Procesar con ORCA",
-            "🧪 Molécula 3D (NH₃ demo)",
-            "📊 Molécula 2D (NH₃ demo)", 
-            "🔗 Conjunto de moléculas (NH₃ demo)",
+            "🧪 Molécula 3D",
+            "📊 Molécula 2D", 
+            "🔗 Conjunto de moléculas",
             "📦 Contenedor de moléculas",
             "📈 Espectro IR", 
             "🔬 Trabajo de adhesión",
@@ -1248,23 +1567,48 @@ def main():
             
             procesar_molecula_completa(molecula_seleccionada)
             
-        elif option == "🧪 Molécula 3D (NH₃ demo)":
-            st.header("🧪 Visualización 3D - NH₃ (Demostración)")
-            st.info("Esta es una demostración con NH₃. En futuras versiones se mostrará la molécula seleccionada.")
-            fig = dibujar_nh3()
-            st.plotly_chart(fig, use_container_width=True)
+        elif option == "🧪 Molécula 3D":
+            st.header(f"🧪 Visualización 3D - {molecula_seleccionada}")
             
-        elif option == "📊 Molécula 2D (NH₃ demo)":
-            st.header("📊 Visualización 2D - NH₃ (Demostración)")
-            st.info("Esta es una demostración con NH₃. En futuras versiones se mostrará la molécula seleccionada.")
-            fig = dibujar_nh3_2d()
-            st.pyplot(fig)
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
             
-        elif option == "🔗 Conjunto de moléculas (NH₃ demo)":
-            st.header("🔗 Conjunto de moléculas - NH₃ (Demostración)")
-            st.info("Esta es una demostración con NH₃. En futuras versiones se mostrará la molécula seleccionada.")
-            fig = dibujar_conjunto_nh3()
-            st.plotly_chart(fig, use_container_width=True)
+            fig = dibujar_molecula_3d(molecula_seleccionada)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            
+        elif option == "📊 Molécula 2D":
+            st.header(f"📊 Visualización 2D - {molecula_seleccionada}")
+            
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
+            
+            fig = dibujar_molecula_2d(molecula_seleccionada)
+            if fig:
+                st.pyplot(fig)
+            
+        elif option == "🔗 Conjunto de moléculas":
+            st.header(f"🔗 Conjunto de moléculas - {molecula_seleccionada}")
+            
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+            else:
+                st.info("Esta funcionalidad mostrará múltiples copias de la molécula seleccionada en un arreglo 3D.")
+                
+                # Verificar si existen datos de ORCA
+                outputs = get_molecule_outputs(molecula_seleccionada)
+                if outputs['opt'].exists():
+                    st.success(f"✅ Archivo de optimización encontrado para {molecula_seleccionada}")
+                    # Por ahora mostrar el demo, pero en futuras versiones usará datos reales
+                    fig = dibujar_conjunto_nh3()
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("⚠️ No se encontraron archivos de ORCA. Ejecuta primero el procesamiento.")
             
         elif option == "📦 Contenedor de moléculas":
             st.header("📦 Simulación de Contenedor Molecular")
@@ -1286,10 +1630,16 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
         elif option == "📈 Espectro IR":
-            st.header("📈 Espectro Infrarrojo")
-            st.info("Espectro IR simulado de ejemplo")
-            fig = dibujar_ir()
-            st.pyplot(fig)
+            st.header(f"📈 Espectro Infrarrojo - {molecula_seleccionada}")
+            
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
+            
+            fig = dibujar_espectro_ir(molecula_seleccionada)
+            if fig:
+                st.pyplot(fig)
             
         elif option == "🔬 Trabajo de adhesión":
             st.header("🔬 Trabajo de Adhesión Molecular")
