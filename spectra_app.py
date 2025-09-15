@@ -1652,7 +1652,7 @@ def main():
 
         elif option == "🌈 Espectros Raman":
             st.header("🌈 Análisis de Espectros IR y Raman")
-            ruta_paso_3 = "modelos/paso_3.txt"
+            ruta_paso_3 = "modelos/FINAL_spectrum.txt"
             if os.path.exists(ruta_paso_3):
                 mostrar_ir_raman(ruta_paso_3)
             else:

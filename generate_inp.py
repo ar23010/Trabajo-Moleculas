@@ -36,7 +36,7 @@ class OrcaInputGenerator:
 
     def generate_opt_input(self):
         """Genera archivo para optimización geométrica."""
-        header = "! B3LYP 6-31+G(d,p) OPT DEFGRID2 TIGHTSCF D3BJ\n"
+        header = "! B3LYP def2-SVP Opt Freq TightSCF\n"
         filename = f"{self.molecule_name}-opt.inp"
         self._write_inp(filename, header)
 
