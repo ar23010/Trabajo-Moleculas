@@ -1,7 +1,0 @@
-streamlit
-pandas
-numpy
-matplotlib
-plotly
-py3Dmol
-rdkit-pypi
