@@ -1666,7 +1666,7 @@ def main():
             else:
                 st.error(f"No se encontró el archivo: {ruta}")
 
-        elif option == "🧬 RMN vs NH₃":
+        elif option == "🧬 IR/Raman vs NH₃":
             st.header("🧬 Comparación IR/Raman vs NH₃")
             ruta = "modelos/FINAL_combined_spectra.txt"
             if os.path.exists(ruta):
