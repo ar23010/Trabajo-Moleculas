@@ -146,16 +146,10 @@ class OrcaOutputGenerator:
                 # Guardar individualmente
                 ir_path = self._save_ir(ir_spectrum, out_dir, inp_name)
                 raman_path = self._save_raman(raman_spectrum, out_dir, inp_name)
-                print("depuracion")
 
-                # Combinar automáticamente los archivos creados - VERIFICAR ESTA LÍNEA
-                if ir_path and raman_path:
-                    print("true")
-                    combined_path = self.combinar_archivos(ir_path, raman_path)
-                    if combined_path:
-                        print(f"✅ Archivos combinados en: {combined_path}")
-                    else:
-                        print("❌ Error al combinar archivos")
+                # ✅ Combinar automáticamente después de guardar los individuales
+                self.combine_existing_spectra_files()
+
             else:
                 print(f"❌ Error en cálculo: {inp_file.name}")
                 print(f"Error: {process.stderr}")
@@ -205,63 +199,43 @@ class OrcaOutputGenerator:
                         f"{p['activity']:>9}   {p['depolarization']:>12}\n")
         print(f"📊 Raman guardado en: {raman_file}")
 
-    def combinar_archivos(self, archivo1, archivo2):
+    def combine_existing_spectra_files(self):
         """
-        Combina dos archivos de texto y guarda el resultado en modelos/FINAL_spectrum.txt
+        Combina los archivos FINAL_ir_spectrum.txt y FINAL_raman_spectrum.txt
+        en un solo archivo FINAL_combined_spectra.txt automáticamente
         """
+        modelos_dir = Path.cwd() / "modelos"
+        
+        ir_file = modelos_dir / "FINAL_ir_spectrum.txt"
+        raman_file = modelos_dir / "FINAL_raman_spectrum.txt"
+        combined_file = modelos_dir / "FINAL_combined_spectra.txt"
+        
+        # Verificar que existan los archivos
+        if not ir_file.exists() and not raman_file.exists():
+            print("⚠️  No se encontraron archivos de espectros para combinar")
+            return None
+        
         try:
-            # Convertir a Path si son strings
-            if isinstance(archivo1, str):
-                archivo1 = Path(archivo1)
-            if isinstance(archivo2, str):
-                archivo2 = Path(archivo2)
-
-            # Verificar que ambos archivos existen
-            if not archivo1.exists():
-                print(f"❌ Archivo no encontrado: {archivo1}")
-                return None
-            if not archivo2.exists():
-                print(f"❌ Archivo no encontrado: {archivo2}")
-                return None
-
-            # Crear directorio modelos si no existe
-            modelos_dir = Path.cwd() / "modelos"
-            modelos_dir.mkdir(parents=True, exist_ok=True)
-
-            # Ruta del archivo combinado
-            combined_file = modelos_dir / "FINAL_spectrum.txt"
-
-            # Leer el contenido de ambos archivos
-            with open(archivo1, 'r', encoding='utf-8') as f1:
-                contenido1 = f1.read()
-
-            with open(archivo2, 'r', encoding='utf-8') as f2:
-                contenido2 = f2.read()
-
-            # Combinar los contenidos con separación clara
-            separador = "\n" + "="*80 + "\n"
-            contenido_combinado = f"ARCHIVO COMBINADO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            contenido_combinado += separador + "ESPECTRO IR:\n" + separador
-            contenido_combinado += contenido1
-            contenido_combinado += separador + "ESPECTRO RAMAN:\n" + separador
-            contenido_combinado += contenido2
-
-            # Escribir el resultado en el archivo de salida
-            with open(combined_file, 'w', encoding='utf-8') as f_salida:
-                f_salida.write(contenido_combinado)
-
+            with open(combined_file, 'w', encoding='utf-8') as outfile:
+                # Combinar archivo IR si existe
+                if ir_file.exists():
+                    print(f"📥 Leyendo archivo IR: {ir_file}")
+                    with open(ir_file, 'r', encoding='utf-8') as infile:
+                        outfile.write(infile.read())
+                        outfile.write("\n\n")  # Separador entre espectros
+                
+                # Combinar archivo Raman si existe
+                if raman_file.exists():
+                    print(f"📥 Leyendo archivo Raman: {raman_file}")
+                    with open(raman_file, 'r', encoding='utf-8') as infile:
+                        outfile.write(infile.read())
+            
             print(f"✅ Archivos combinados exitosamente en: {combined_file}")
             return combined_file
-
-        except FileNotFoundError as e:
-            print(f"❌ Error: Archivo no encontrado - {e}")
-            return None
+            
         except Exception as e:
-            print(f"❌ Error inesperado al combinar: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Error al combinar archivos: {e}")
             return None
-
 
     def process_molecule(self, molecule_name: str) -> dict:
         """
