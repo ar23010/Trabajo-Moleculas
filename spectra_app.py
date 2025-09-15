@@ -1088,22 +1088,22 @@ def main():
 
     elif option == "Comparacion Moleculas":
         st.title("Comparar Moleculas ORCA vs NH3")
-        ruta = "/home/alexander/Documentos/Trabajo-Moleculas/modelos/paso_2.txt"
+        ruta = "modelos/paso_2.txt"
         comparar_moleculas_orca_vs_nh3(ruta)
 
     elif option == "Raman":
         st.title("Graficos IR y Raman")
-        ruta_paso_3 = "/home/alexander/Documentos/Trabajo-Moleculas/modelos/paso_3.txt"
+        ruta_paso_3 = "modelos/paso_3.txt"
         mostrar_ir_raman(ruta_paso_3)
 
     elif option == "Raman vs molecula":
         st.title("Graficos IR y Raman comparado con molecula NH3")
-        ruta = "/home/alexander/Documentos/Trabajo-Moleculas/modelos/paso_3.txt" 
+        ruta = "modelos/paso_3.txt" 
         comparar_ir_raman_vs_nh3(ruta)
     
     elif option == "Estimacion de desplazamiento":
         st.title("Estimacion De Los Desplazamientos Químicos de H1 y C13")
-        ruta = "/home/alexander/Documentos/Trabajo-Moleculas/modelos/paso_4.txt"
+        ruta = "modelos/paso_4.txt"
         comparar_rmn_s4_vs_nh3(ruta)
 
 
