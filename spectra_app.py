@@ -11,6 +11,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import Counter
 
+# Importar nuestras clases personalizadas
+from generate_inp import OrcaInputGenerator
+from generar_out import OrcaOutputGenerator
+
 #----- Gráfico del Modelo 3D NH3 -----
 def dibujar_nh3():
     # ---------- Parámetros ----------
@@ -244,6 +248,8 @@ def dibujar_conjunto_nh3():
         ], dtype=float)
         base = base / np.linalg.norm(base, axis=1)[:, None]
         vecs = base * bond_len
+        vecs[:, 2] += lift  # elevar un poco en Z
+        return vecs
         vecs[:, 1] += lift
         return vecs.tolist()
 
@@ -1042,69 +1048,319 @@ def comparar_rmn_s4_vs_nh3(ruta: str) -> pd.DataFrame:
     st.dataframe(df_m, use_container_width=True)
     return df_m
 
-# ---------- MAIN ----------
-def main():
-    # Menú de navegación
-    option = st.sidebar.radio("Selecciona una sección", [
-    "Molecula 3D", "Molécula 2D", "Conjunto de moléculas", "Contenedor de moleculas", 
-    "Espectro IR", "Trabajo de adhesión porcentual", "Molécula teórica","Raman", "Comparacion Moleculas",
-    "Raman vs molecula", "Estimacion de desplazamiento"
-    ])
-
-    if option == "Molecula 3D":
-        fig = dibujar_nh3()
-        st.title("Molécula de NH₃ en 3D")
-        st.write("Visualización interactiva usando Plotly y Streamlit")
-        st.plotly_chart(fig, use_container_width=True)
-        
-    elif option == "Molécula 2D":
-        st.title("Molécula")
-        fig = dibujar_nh3_2d()
-        st.pyplot(fig)
-        
-    elif option == "Conjunto de moléculas":
-        st.title("Conjunto de moléculas")
-        fig = dibujar_conjunto_nh3()
-        st.plotly_chart(fig, use_container_width=True)
-        
-    elif option == "Contenedor de moleculas":
-        st.title("Contenedor de moléculas")
-        fig = contenedor_molecular()
-        st.plotly_chart(fig, use_container_width=True)
-
-    elif option == "Espectro IR":
-        st.title("Espectro IR")
-        fig = dibujar_ir()
-        st.pyplot(fig)
-        
-    elif option == "Trabajo de adhesión porcentual":
-        st.title("Trabajo de adhesión porcentual")
-        fig = graficar_trabajo_adhesion()
-        st.pyplot(fig)
-
-    elif option == "Molécula teórica":
-        st.title("Molécula teórica")
-        mostrar_rdf()
-
-    elif option == "Comparacion Moleculas":
-        st.title("Comparar Moleculas ORCA vs NH3")
-        ruta = "modelos/paso_2.txt"
-        comparar_moleculas_orca_vs_nh3(ruta)
-
-    elif option == "Raman":
-        st.title("Graficos IR y Raman")
-        ruta_paso_3 = "modelos/paso_3.txt"
-        mostrar_ir_raman(ruta_paso_3)
-
-    elif option == "Raman vs molecula":
-        st.title("Graficos IR y Raman comparado con molecula NH3")
-        ruta = "modelos/paso_3.txt" 
-        comparar_ir_raman_vs_nh3(ruta)
+# ---------- NUEVA FUNCIÓN PARA SELECTOR DE MOLÉCULAS ----------
+def seleccionar_molecula():
+    """Función para seleccionar una molécula de la carpeta moleculas_xyz."""
+    moleculas_dir = Path("moleculas_xyz")
     
-    elif option == "Estimacion de desplazamiento":
-        st.title("Estimacion De Los Desplazamientos Químicos de H1 y C13")
-        ruta = "modelos/paso_4.txt"
-        comparar_rmn_s4_vs_nh3(ruta)
+    if not moleculas_dir.exists():
+        st.error("La carpeta 'moleculas_xyz' no existe")
+        return None
+        
+    archivos_xyz = list(moleculas_dir.glob("*.xyz"))
+    
+    if not archivos_xyz:
+        st.error("No se encontraron archivos .xyz en la carpeta 'moleculas_xyz'")
+        return None
+        
+    nombres_moleculas = [f.stem for f in archivos_xyz]
+    molecula_seleccionada = st.selectbox(
+        "Selecciona una molécula para analizar:",
+        nombres_moleculas,
+        index=0
+    )
+    
+    return molecula_seleccionada
+
+def procesar_molecula_completa(nombre_molecula: str):
+    """Función que ejecuta todo el pipeline: generar inputs -> ejecutar ORCA -> mostrar resultados."""
+    
+    if not nombre_molecula:
+        st.warning("No se ha seleccionado ninguna molécula")
+        return
+        
+    molecula_path = Path("moleculas_xyz") / f"{nombre_molecula}.xyz"
+    
+    if not molecula_path.exists():
+        st.error(f"No se encontró el archivo: {molecula_path}")
+        return
+        
+    # Mostrar información de la molécula
+    st.info(f"Procesando molécula: {nombre_molecula}")
+    
+    # Crear columnas para organizar la información
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🔄 Generando archivos de entrada ORCA")
+        
+        # Generar archivos .inp
+        generator = OrcaInputGenerator(str(molecula_path))
+        generator.generate_all()
+        
+        st.success("✅ Archivos .inp generados correctamente")
+        
+    with col2:
+        st.subheader("🖥️ Ejecutando cálculos ORCA")
+        
+        # Ejecutar ORCA (si está disponible)
+        output_generator = OrcaOutputGenerator()
+        
+        if output_generator.orca_path:
+            if st.button("Ejecutar cálculos ORCA"):
+                with st.spinner("Ejecutando cálculos... Esto puede tomar varios minutos"):
+                    results = output_generator.process_molecule(nombre_molecula)
+                    
+                if results["success"]:
+                    st.success("✅ Cálculos ORCA completados")
+                    
+                    # Mostrar resultados de cada cálculo
+                    for calc_type, calc_result in results["calculations"].items():
+                        if calc_result["success"]:
+                            tiempo = calc_result["time"]
+                            st.write(f"- {calc_type.upper()}: Completado en {tiempo:.1f}s")
+                        else:
+                            st.warning(f"- {calc_type.upper()}: Falló")
+                else:
+                    st.error("❌ Algunos cálculos fallaron")
+        else:
+            st.warning("⚠️ ORCA no está disponible. Los cálculos no se pueden ejecutar.")
+            st.info("Los archivos .inp se han generado y pueden ser ejecutados manualmente.")
+
+def mostrar_informacion_molecula(nombre_molecula: str):
+    """Muestra información básica sobre la molécula seleccionada."""
+    molecula_path = Path("moleculas_xyz") / f"{nombre_molecula}.xyz"
+    
+    if not molecula_path.exists():
+        return
+        
+    # Leer archivo XYZ
+    with open(molecula_path, 'r') as f:
+        lines = f.readlines()
+        
+    if len(lines) < 2:
+        st.error("Archivo XYZ inválido")
+        return
+        
+    num_atoms = int(lines[0].strip())
+    description = lines[1].strip() if len(lines) > 1 else "Sin descripción"
+    
+    # Parsear átomos
+    atoms = []
+    for i in range(2, min(len(lines), num_atoms + 2)):
+        parts = lines[i].strip().split()
+        if len(parts) >= 4:
+            element = parts[0]
+            x, y, z = map(float, parts[1:4])
+            atoms.append([element, x, y, z])
+    
+    # Mostrar información
+    st.subheader(f"📋 Información de {nombre_molecula}")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Número de átomos", num_atoms)
+        
+    with col2:
+        elementos = [atom[0] for atom in atoms]
+        elementos_unicos = list(set(elementos))
+        st.metric("Tipos de elementos", len(elementos_unicos))
+        
+    with col3:
+        formula = ""
+        from collections import Counter
+        contador = Counter(elementos)
+        for elemento in sorted(contador.keys()):
+            count = contador[elemento]
+            if count > 1:
+                formula += f"{elemento}₂" if count == 2 else f"{elemento}{count}"
+            else:
+                formula += elemento
+        st.metric("Fórmula", formula)
+    
+    # Descripción
+    if description and description != "Sin descripción":
+        st.write(f"**Descripción:** {description}")
+        
+    # Tabla de coordenadas
+    if atoms:
+        df_coords = pd.DataFrame(atoms, columns=["Elemento", "X (Å)", "Y (Å)", "Z (Å)"])
+        st.subheader("🧮 Coordenadas atómicas")
+        st.dataframe(df_coords, use_container_width=True)
+
+# ---------- MAIN MODIFICADO ----------
+def main():
+    st.set_page_config(
+        page_title="Analizador de Moléculas XYZ",
+        page_icon="🧬",
+        layout="wide"
+    )
+    
+    st.title("🧬 Analizador de Moléculas XYZ con ORCA")
+    st.markdown("---")
+    
+    # Sidebar para navegación
+    st.sidebar.title("🗂️ Navegación")
+    
+    # Primer paso: Selección de molécula
+    st.sidebar.subheader("1. Selección de Molécula")
+    molecula_seleccionada = seleccionar_molecula()
+    
+    if molecula_seleccionada:
+        st.sidebar.success(f"Molécula seleccionada: {molecula_seleccionada}")
+        
+        # Opciones de análisis
+        st.sidebar.subheader("2. Tipo de Análisis")
+        option = st.sidebar.radio("Selecciona una sección:", [
+            "📋 Información de la molécula",
+            "🔄 Procesar con ORCA",
+            "🧪 Molécula 3D (NH₃ demo)",
+            "📊 Molécula 2D (NH₃ demo)", 
+            "🔗 Conjunto de moléculas (NH₃ demo)",
+            "📦 Contenedor de moléculas",
+            "📈 Espectro IR", 
+            "🔬 Trabajo de adhesión",
+            "⚛️ Molécula teórica (RDF)",
+            "🌈 Espectros Raman",
+            "🔍 Comparación con NH₃",
+            "🧬 RMN vs NH₃",
+            "📉 Desplazamientos químicos"
+        ])
+        
+        # Contenido principal
+        if option == "📋 Información de la molécula":
+            mostrar_informacion_molecula(molecula_seleccionada)
+            
+        elif option == "🔄 Procesar con ORCA":
+            st.header("🔄 Procesamiento completo con ORCA")
+            st.write("Este proceso generará los archivos de entrada de ORCA y ejecutará los cálculos.")
+            
+            with st.expander("ℹ️ Información del proceso", expanded=True):
+                st.write("""
+                **El procesamiento incluye:**
+                1. 📝 Generación de archivos .inp (optimización, IR/Raman, RMN)
+                2. ⚙️ Ejecución de cálculos ORCA (si está disponible)
+                3. 📊 Análisis de resultados
+                
+                **Nota:** Se requiere tener ORCA instalado para ejecutar los cálculos.
+                """)
+            
+            procesar_molecula_completa(molecula_seleccionada)
+            
+        elif option == "🧪 Molécula 3D (NH₃ demo)":
+            st.header("🧪 Visualización 3D - NH₃ (Demostración)")
+            st.info("Esta es una demostración con NH₃. En futuras versiones se mostrará la molécula seleccionada.")
+            fig = dibujar_nh3()
+            st.plotly_chart(fig, use_container_width=True)
+            
+        elif option == "📊 Molécula 2D (NH₃ demo)":
+            st.header("📊 Visualización 2D - NH₃ (Demostración)")
+            st.info("Esta es una demostración con NH₃. En futuras versiones se mostrará la molécula seleccionada.")
+            fig = dibujar_nh3_2d()
+            st.pyplot(fig)
+            
+        elif option == "🔗 Conjunto de moléculas (NH₃ demo)":
+            st.header("🔗 Conjunto de moléculas - NH₃ (Demostración)")
+            st.info("Esta es una demostración con NH₃. En futuras versiones se mostrará la molécula seleccionada.")
+            fig = dibujar_conjunto_nh3()
+            st.plotly_chart(fig, use_container_width=True)
+            
+        elif option == "📦 Contenedor de moléculas":
+            st.header("📦 Simulación de Contenedor Molecular")
+            
+            # Controles para personalizar la simulación
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                n_molecules = st.slider("Número de moléculas", 50, 1000, 400)
+            with col2:
+                atoms_per_molecule = st.slider("Átomos por molécula", 3, 20, 6)
+            with col3:
+                box_size = st.slider("Tamaño de caja (Å)", 20, 150, 80)
+                
+            fig = contenedor_molecular(
+                n_molecules=n_molecules,
+                atoms_per_molecule=atoms_per_molecule,
+                box=box_size
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif option == "📈 Espectro IR":
+            st.header("📈 Espectro Infrarrojo")
+            st.info("Espectro IR simulado de ejemplo")
+            fig = dibujar_ir()
+            st.pyplot(fig)
+            
+        elif option == "🔬 Trabajo de adhesión":
+            st.header("🔬 Trabajo de Adhesión Molecular")
+            fig = graficar_trabajo_adhesion()
+            st.pyplot(fig)
+
+        elif option == "⚛️ Molécula teórica (RDF)":
+            st.header("⚛️ Función de Distribución Radial (RDF)")
+            mostrar_rdf()
+
+        elif option == "🌈 Espectros Raman":
+            st.header("🌈 Análisis de Espectros IR y Raman")
+            ruta_paso_3 = "modelos/paso_3.txt"
+            if os.path.exists(ruta_paso_3):
+                mostrar_ir_raman(ruta_paso_3)
+            else:
+                st.error(f"No se encontró el archivo: {ruta_paso_3}")
+
+        elif option == "🔍 Comparación con NH₃":
+            st.header("🔍 Comparación Molecular vs NH₃")
+            ruta = "modelos/paso_2.txt"
+            if os.path.exists(ruta):
+                comparar_moleculas_orca_vs_nh3(ruta)
+            else:
+                st.error(f"No se encontró el archivo: {ruta}")
+
+        elif option == "🧬 RMN vs NH₃":
+            st.header("🧬 Comparación IR/Raman vs NH₃")
+            ruta = "modelos/paso_3.txt"
+            if os.path.exists(ruta):
+                comparar_ir_raman_vs_nh3(ruta)
+            else:
+                st.error(f"No se encontró el archivo: {ruta}")
+        
+        elif option == "📉 Desplazamientos químicos":
+            st.header("📉 Análisis de Desplazamientos Químicos (RMN)")
+            ruta = "modelos/paso_4.txt"
+            if os.path.exists(ruta):
+                comparar_rmn_s4_vs_nh3(ruta)
+            else:
+                st.error(f"No se encontró el archivo: {ruta}")
+                
+    else:
+        # Si no hay molécula seleccionada
+        st.warning("⚠️ Por favor, asegúrate de que la carpeta 'moleculas_xyz' contenga archivos .xyz")
+        
+        # Mostrar información de ayuda
+        with st.expander("ℹ️ Cómo usar esta aplicación", expanded=True):
+            st.write("""
+            **Pasos para usar el analizador:**
+            
+            1. 📁 **Estructura de archivos**: Asegúrate de tener la carpeta `moleculas_xyz` con archivos .xyz
+            2. 🔧 **ORCA**: Instala ORCA para ejecutar cálculos cuánticos (opcional)
+            3. 🧬 **Selecciona**: Elige una molécula del menú lateral
+            4. 📊 **Analiza**: Escoge el tipo de análisis que deseas realizar
+            
+            **Formatos soportados:**
+            - Archivos XYZ estándar
+            - Compatible con resultados de ORCA
+            """)
+            
+        # Mostrar moléculas de ejemplo disponibles
+        moleculas_dir = Path("moleculas_xyz")
+        if moleculas_dir.exists():
+            archivos_xyz = list(moleculas_dir.glob("*.xyz"))
+            if archivos_xyz:
+                st.subheader("🗃️ Moléculas disponibles:")
+                for i, archivo in enumerate(archivos_xyz[:10]):  # Mostrar máximo 10
+                    st.write(f"{i+1}. {archivo.stem}")
+                if len(archivos_xyz) > 10:
+                    st.write(f"... y {len(archivos_xyz) - 10} más")
 
 
 if __name__ == "__main__":
