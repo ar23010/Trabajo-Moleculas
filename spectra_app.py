@@ -473,6 +473,188 @@ def dibujar_conjunto_nh3():
     )
     return fig
 
+#----- Conjunto de moléculas dinámico (usando datos reales de ORCA) -----
+def dibujar_conjunto_molecula(molecule_name):
+    """Visualización de conjunto de moléculas usando coordenadas optimizadas de ORCA"""
+    
+    # Verificar si existen archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    if not outputs['opt'].exists():
+        st.error(f"❌ No se encontró archivo de optimización: {outputs['opt']}")
+        return None
+    
+    # Leer coordenadas optimizadas
+    elements, coords = parse_orca_coordinates(outputs['opt'])
+    
+    if len(elements) == 0:
+        st.error("❌ No se pudieron leer las coordenadas del archivo ORCA")
+        return None
+    
+    # Colores por elemento
+    element_colors = {
+        'H': '#FFFFFF',   # Blanco
+        'C': '#404040',   # Gris oscuro  
+        'N': '#3050F8',   # Azul
+        'O': '#FF0D0D',   # Rojo
+        'F': '#90E050',   # Verde claro
+        'P': '#FF8000',   # Naranja
+        'S': '#FFFF30',   # Amarillo
+        'Cl': '#1FF01F',  # Verde
+        'Br': '#A62929',  # Marrón rojizo
+        'I': '#940094',   # Púrpura
+    }
+    
+    # Radios por elemento
+    element_radii = {
+        'H': 0.31, 'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.64,
+        'P': 1.07, 'S': 1.05, 'Cl': 1.02, 'Br': 1.20, 'I': 1.39
+    }
+    
+    # Helpers geométricos
+    def create_sphere(center, radius, color):
+        u, v = np.mgrid[0:2*np.pi:12j, 0:np.pi:6j]
+        x = radius * np.cos(u) * np.sin(v) + center[0]
+        y = radius * np.sin(u) * np.sin(v) + center[1]
+        z = radius * np.cos(v) + center[2]
+        return go.Surface(
+            x=x, y=y, z=z,
+            colorscale=[[0, color], [1, color]],
+            showscale=False, hoverinfo='skip', opacity=0.9
+        )
+
+    def create_cylinder(p0, p1, radius, color, resolution=8):
+        p0, p1 = np.array(p0, float), np.array(p1, float)
+        v = p1 - p0
+        L = np.linalg.norm(v)
+        if L == 0:
+            return None
+        v /= L
+
+        a = np.array([1, 0, 0]) if abs(v[0]) < 0.9 else np.array([0, 1, 0])
+        n1 = np.cross(v, a); n1 /= np.linalg.norm(n1)
+        n2 = np.cross(v, n1); n2 /= np.linalg.norm(n2)
+
+        t = np.linspace(0, L, 2)
+        th = np.linspace(0, 2*np.pi, resolution)
+        t, th = np.meshgrid(t, th)
+
+        X = p0[0] + v[0]*t + radius*np.sin(th)*n1[0] + radius*np.cos(th)*n2[0]
+        Y = p0[1] + v[1]*t + radius*np.sin(th)*n1[1] + radius*np.cos(th)*n2[1]
+        Z = p0[2] + v[2]*t + radius*np.sin(th)*n1[2] + radius*np.cos(th)*n2[2]
+        return go.Surface(
+            x=X, y=Y, z=Z,
+            colorscale=[[0, color], [1, color]],
+            showscale=False, hoverinfo='skip'
+        )
+
+    # Crear figura
+    fig = go.Figure()
+    
+    # Posiciones para el conjunto de moléculas (arreglo lineal conectado)
+    spacing = max(np.max(coords, axis=0) - np.min(coords, axis=0)) * 2.0  # Espaciado dinámico
+    
+    # Crear cadena de moléculas con patrón zig-zag como en NH3
+    num_molecules = 7  # Número de moléculas en la cadena
+    grid_positions = []
+    
+    for i in range(num_molecules):
+        # Patrón zig-zag más pronunciado alternando en X y Z
+        x_offset = 0.8 if i % 2 == 0 else -0.8  # Aumentado de 0.3 a 0.8
+        y_offset = (num_molecules - 1 - i) * spacing  # De arriba hacia abajo
+        z_offset = 0.4 if i % 2 == 0 else -0.4  # Añadido zig-zag en Z también
+        
+        offset = np.array([x_offset, y_offset, z_offset])
+        grid_positions.append(offset)
+    
+    # Calcular centros de masa de cada molécula para las conexiones
+    molecule_centers = []
+    for grid_pos in grid_positions:
+        # Centro de masa de la molécula
+        center_of_mass = np.mean(coords, axis=0) + grid_pos
+        molecule_centers.append(center_of_mass)
+    
+    # Dibujar cada molécula en las posiciones del grid
+    for grid_pos in grid_positions:
+        # Agregar átomos
+        for element, coord in zip(elements, coords):
+            new_pos = coord + grid_pos
+            color = element_colors.get(element, '#808080')
+            radius = element_radii.get(element, 0.5) * 0.8  # Reducir un poco para el conjunto
+            
+            sphere = create_sphere(new_pos, radius, color)
+            fig.add_trace(sphere)
+        
+        # Agregar enlaces dentro de cada molécula
+        for i in range(len(coords)):
+            for j in range(i+1, len(coords)):
+                dist = np.linalg.norm(coords[i] - coords[j])
+                
+                # Criterios de enlace
+                max_dist = 1.8
+                if elements[i] == 'H' or elements[j] == 'H':
+                    max_dist = 1.2
+                    
+                if dist < max_dist:
+                    pos1 = coords[i] + grid_pos
+                    pos2 = coords[j] + grid_pos
+                    bond = create_cylinder(pos1, pos2, 0.05, '#808080')
+                    if bond:
+                        fig.add_trace(bond)
+    
+    # Agregar conexiones entre moléculas (enlaces intermoleculares con zig-zag)
+    connection_color = '#FFFFFF'  # Color blanco para las conexiones
+    for i in range(len(molecule_centers) - 1):
+        center1 = molecule_centers[i]
+        center2 = molecule_centers[i + 1]
+        
+        # Crear conexión zig-zag más suave con punto intermedio
+        # Punto intermedio para crear curva zig-zag
+        mid_point = (center1 + center2) / 2
+        
+        # Añadir desplazamiento perpendicular para hacer la curva más visible
+        direction = center2 - center1
+        perpendicular = np.array([-direction[2], 0, direction[0]])  # Vector perpendicular
+        if np.linalg.norm(perpendicular) > 0:
+            perpendicular = perpendicular / np.linalg.norm(perpendicular)
+            # Alternar la dirección de la curva
+            curve_offset = 0.3 * (1 if i % 2 == 0 else -1)
+            mid_point += perpendicular * curve_offset
+        
+        # Crear dos segmentos: center1 -> mid_point -> center2
+        connection1 = create_cylinder(center1, mid_point, 0.08, connection_color)
+        connection2 = create_cylinder(mid_point, center2, 0.08, connection_color)
+        
+        if connection1:
+            fig.add_trace(connection1)
+        if connection2:
+            fig.add_trace(connection2)
+        
+        # Agregar una pequeña esfera en el punto medio para suavizar la conexión
+        mid_sphere = create_sphere(mid_point, 0.06, connection_color)
+        fig.add_trace(mid_sphere)
+    
+    # Configurar layout
+    fig.update_layout(
+        title=f"Cadena conectada de moléculas: {molecule_name} (7 moléculas enlazadas)",
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False), 
+            zaxis=dict(visible=False),
+            aspectmode='data',
+            bgcolor='rgb(14,17,23)',  # Fondo oscuro como en NH3
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5),
+                center=dict(x=0, y=0, z=0)
+            )
+        ),
+        margin=dict(l=0, r=0, t=50, b=0),
+        showlegend=False,
+        height=600
+    )
+    
+    return fig
+
 #----- Gráfico del Modelo 2D (DATOS REALES DE ORCA) -----
 def dibujar_molecula_2d(molecule_name):
     """Visualización 2D de la molécula usando coordenadas optimizadas de ORCA"""
@@ -756,7 +938,7 @@ def graficar_trabajo_adhesion():
     # ---------- Datos ----------
     x_h2o = np.array([0, 5, 10, 15, 20], dtype=float)
 
-    y_vdw_contacto = np.array([2.1, 0.85, 0.60, 0.08, 0.05], dtype=float)
+    y_vdw_contacto = np.array([2, 0.85, 0.60, 0.08, 0.05], dtype=float)
     y_ener_pot     = np.array([2.35, 1.05, 0.70, 0.10, 0.06], dtype=float)
 
     # ---------- Gráfico ----------
@@ -1598,15 +1780,16 @@ def main():
             if not molecula_seleccionada:
                 st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
             else:
-                st.info("Esta funcionalidad mostrará múltiples copias de la molécula seleccionada en un arreglo 3D.")
+                st.info(f"Esta funcionalidad mostrará múltiples copias de {molecula_seleccionada} en un arreglo 3D usando datos reales de ORCA.")
                 
                 # Verificar si existen datos de ORCA
                 outputs = get_molecule_outputs(molecula_seleccionada)
                 if outputs['opt'].exists():
                     st.success(f"✅ Archivo de optimización encontrado para {molecula_seleccionada}")
-                    # Por ahora mostrar el demo, pero en futuras versiones usará datos reales
-                    fig = dibujar_conjunto_nh3()
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Usar la nueva función dinámica con la molécula seleccionada
+                    fig = dibujar_conjunto_molecula(molecula_seleccionada)
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("⚠️ No se encontraron archivos de ORCA. Ejecuta primero el procesamiento.")
             
@@ -1715,3 +1898,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+# ----- Ojala funcione todo bien -----
+
