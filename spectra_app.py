@@ -1668,7 +1668,7 @@ def main():
 
         elif option == "🧬 RMN vs NH₃":
             st.header("🧬 Comparación IR/Raman vs NH₃")
-            ruta = "modelos/paso_3.txt"
+            ruta = "modelos/FINAL_combined_spectra.txt"
             if os.path.exists(ruta):
                 comparar_ir_raman_vs_nh3(ruta)
             else:
