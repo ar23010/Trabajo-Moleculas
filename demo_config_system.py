@@ -69,7 +69,7 @@ def demo_configuracion_automatica():
             status = "✅" if success else "❌"
             print(f"   {paso}: {status}")
         
-        print(f"\n🎉 Configuración completada: {successful}/{total} archivos")
+        print(f"\n Configuración completada: {successful}/{total} archivos")
         
         # Estado final
         print(f"\n📁 Estado final de archivos:")
@@ -135,7 +135,7 @@ def demo_reactividad():
         
         # Verificar que el cambio fue detectado correctamente
         if current == mol2:
-            print(f"🎉 Reactividad funcionando correctamente!")
+            print(f" Reactividad funcionando correctamente!")
         else:
             print(f"⚠️ Problema con la reactividad")
         
@@ -220,7 +220,7 @@ def main():
     print("4. Los archivos paso_1.txt, paso_2.txt y paso_4.txt se actualizan")
     print("   automáticamente cada vez que cambias de molécula")
     print("")
-    print("🎉 ¡El sistema está listo para usar!")
+    print(" ¡El sistema está listo para usar!")
 
 if __name__ == "__main__":
     main()

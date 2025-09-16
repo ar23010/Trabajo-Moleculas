@@ -1757,7 +1757,6 @@ def seleccionar_molecula():
                 
                 if successful_updates == total_updates:
                     st.success(f"✅ {molecula_seleccionada} configurada correctamente")
-                    st.balloons()
                 else:
                     st.warning(f"⚠️ Configuración parcial: {successful_updates}/{total_updates} archivos actualizados")
                 
