@@ -1,4 +1,4 @@
-! B3LYP 6-31+G(d,p) OPT DEFGRID2 TIGHTSCF D3BJ
+! B3LYP def2-SVP Opt Freq TightSCF
 
 * xyz 0 1
 O    0.000000    0.000000    0.000000

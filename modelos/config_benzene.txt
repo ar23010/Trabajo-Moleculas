@@ -1,0 +1,23 @@
+# Configuración automática para benzene
+# Generado automáticamente por MolecularConfigManager
+# Fecha: lun 15 sep 2025 22:12:37 CST
+
+MOLECULE_NAME: benzene
+DESCRIPTION: Benceno
+NUM_ATOMS: 12
+ELEMENTS: C, H
+
+# Coordenadas (Angstrom)
+COORDINATES:
+  1  C        0.000000       1.402720       0.000000
+  2  H        0.000000       2.490290       0.000000
+  3  C       -1.214790       0.701360       0.000000
+  4  H       -2.156660       1.245150       0.000000
+  5  C       -1.214790      -0.701360       0.000000
+  6  H       -2.156660      -1.245150       0.000000
+  7  C        0.000000      -1.402720       0.000000
+  8  H        0.000000      -2.490290       0.000000
+  9  C        1.214790      -0.701360       0.000000
+ 10  H        2.156660      -1.245150       0.000000
+ 11  C        1.214790       0.701360       0.000000
+ 12  H        2.156660       1.245150       0.000000

@@ -8,7 +8,7 @@ import time
 import datetime
 
 # Ruta del ejecutable de ORCA (personalizable por el usuario)
-ORCA_BIN = "/home/fercho/orca_6_1_0_linux_x86-64_shared_openmpi418/orca"
+ORCA_BIN = "/home/jonathan/Trabajos_de_Orca/orca-6.1.0-f.0_linux_x86-64/bin/orca"
 
 class OrcaSpectrumExtractor:
     """Extrae IR y Raman por separado"""

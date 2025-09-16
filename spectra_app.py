@@ -14,6 +14,7 @@ from collections import Counter
 # Importar nuestras clases personalizadas
 from generate_inp import OrcaInputGenerator
 from generar_out import OrcaOutputGenerator
+from molecular_config_manager import MolecularConfigManager
 
 # ========== FUNCIONES PARA LEER ARCHIVOS ORCA .out ==========
 
@@ -652,6 +653,151 @@ def dibujar_conjunto_molecula(molecule_name):
         showlegend=False,
         height=600
     )
+    
+    return fig
+
+#----- Gráfico del Modelo 3D reactivo (usando configuración automática) -----
+def dibujar_molecula_3d(molecule_name):
+    """Visualización 3D de la molécula usando datos de configuración automática"""
+    
+    try:
+        config_manager = MolecularConfigManager()
+        elements, coords, description = config_manager.read_xyz_file(molecule_name)
+        
+        if len(elements) == 0:
+            st.error("❌ No se pudieron leer los datos de la molécula")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Error leyendo datos de la molécula: {e}")
+        return None
+    
+    # Colores por elemento
+    element_colors = {
+        'H': '#FFFFFF',   # Blanco
+        'C': '#404040',   # Gris oscuro  
+        'N': '#3050F8',   # Azul
+        'O': '#FF0D0D',   # Rojo
+        'F': '#90E050',   # Verde claro
+        'P': '#FF8000',   # Naranja
+        'S': '#FFFF30',   # Amarillo
+        'Cl': '#1FF01F',  # Verde
+        'Br': '#A62929',  # Marrón rojizo
+        'I': '#940094',   # Púrpura
+    }
+    
+    # Radios por elemento
+    element_radii = {
+        'H': 0.31, 'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.64,
+        'P': 1.07, 'S': 1.05, 'Cl': 1.02, 'Br': 1.20, 'I': 1.39
+    }
+    
+    # Helpers geométricos
+    def create_sphere(center, radius, color):
+        u, v = np.mgrid[0:2*np.pi:12j, 0:np.pi:6j]
+        x = radius * np.cos(u) * np.sin(v) + center[0]
+        y = radius * np.sin(u) * np.sin(v) + center[1]
+        z = radius * np.cos(v) + center[2]
+        return go.Surface(
+            x=x, y=y, z=z,
+            colorscale=[[0, color], [1, color]],
+            showscale=False, hoverinfo='skip', opacity=0.9
+        )
+
+    def create_cylinder(p0, p1, radius, color, resolution=8):
+        p0, p1 = np.array(p0, float), np.array(p1, float)
+        v = p1 - p0
+        L = np.linalg.norm(v)
+        if L == 0:
+            return None
+        v /= L
+
+        a = np.array([1, 0, 0]) if abs(v[0]) < 0.9 else np.array([0, 1, 0])
+        n1 = np.cross(v, a); n1 /= np.linalg.norm(n1)
+        n2 = np.cross(v, n1); n2 /= np.linalg.norm(n2)
+
+        t = np.linspace(0, L, 2)
+        th = np.linspace(0, 2*np.pi, resolution)
+        t, th = np.meshgrid(t, th)
+
+        X = p0[0] + v[0]*t + radius*np.sin(th)*n1[0] + radius*np.cos(th)*n2[0]
+        Y = p0[1] + v[1]*t + radius*np.sin(th)*n1[1] + radius*np.cos(th)*n2[1]
+        Z = p0[2] + v[2]*t + radius*np.sin(th)*n1[2] + radius*np.cos(th)*n2[2]
+        return go.Surface(
+            x=X, y=Y, z=Z,
+            colorscale=[[0, color], [1, color]],
+            showscale=False, hoverinfo='skip'
+        )
+
+    # Crear figura
+    fig = go.Figure()
+    
+    # Agregar átomos
+    for element, coord in zip(elements, coords):
+        color = element_colors.get(element, '#808080')
+        radius = element_radii.get(element, 0.5)
+        
+        sphere = create_sphere(coord, radius, color)
+        fig.add_trace(sphere)
+    
+    # Agregar enlaces 
+    for i in range(len(coords)):
+        for j in range(i+1, len(coords)):
+            dist = np.linalg.norm(coords[i] - coords[j])
+            
+            # Criterios de enlace
+            max_dist = 1.8
+            if elements[i] == 'H' or elements[j] == 'H':
+                max_dist = 1.2
+                
+            if dist < max_dist:
+                bond = create_cylinder(coords[i], coords[j], 0.08, '#808080')
+                if bond:
+                    fig.add_trace(bond)
+    
+    # Configurar layout
+    fig.update_layout(
+        title=f"Molécula 3D: {molecule_name}",
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False), 
+            zaxis=dict(visible=False),
+            aspectmode='data',
+            bgcolor='rgb(240,240,240)',  # Fondo claro
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5),
+                center=dict(x=0, y=0, z=0)
+            )
+        ),
+        margin=dict(l=0, r=0, t=50, b=0),
+        showlegend=False,
+        height=600
+    )
+    
+    # Mostrar información adicional
+    st.subheader("📊 Información de la molécula")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Número de átomos", len(elements))
+    with col2:
+        elementos_unicos = list(set(elements))
+        st.metric("Tipos de elementos", len(elementos_unicos))
+    with col3:
+        # Calcular número de enlaces
+        num_enlaces = 0
+        for i in range(len(coords)):
+            for j in range(i+1, len(coords)):
+                dist = np.linalg.norm(coords[i] - coords[j])
+                max_dist = 1.8
+                if elements[i] == 'H' or elements[j] == 'H':
+                    max_dist = 1.2
+                if dist < max_dist:
+                    num_enlaces += 1
+        st.metric("Enlaces detectados", num_enlaces)
+    
+    if description and description.strip():
+        st.info(f"**Descripción:** {description}")
     
     return fig
 
@@ -1565,11 +1711,64 @@ def seleccionar_molecula():
         return None
         
     nombres_moleculas = [f.stem for f in archivos_xyz]
+    
+    # Inicializar el gestor de configuración
+    try:
+        config_manager = MolecularConfigManager()
+        
+        # Detectar molécula actualmente configurada
+        current_molecule = config_manager.get_current_molecule_from_paso(2)
+        
+        # Encontrar el índice de la molécula actual
+        default_index = 0
+        if current_molecule and current_molecule in nombres_moleculas:
+            default_index = nombres_moleculas.index(current_molecule)
+            st.sidebar.info(f"🎯 Molécula detectada: {current_molecule}")
+        
+    except Exception as e:
+        st.sidebar.warning(f"⚠️ Error detectando molécula actual: {e}")
+        default_index = 0
+    
+    # Selector de molécula
     molecula_seleccionada = st.selectbox(
         "Selecciona una molécula para analizar:",
         nombres_moleculas,
-        index=0
+        index=default_index,
+        key="molecule_selector"
     )
+    
+    # Sistema reactivo: configurar automáticamente cuando cambia la selección
+    if molecula_seleccionada:
+        try:
+            # Verificar si necesita reconfiguración
+            config_manager = MolecularConfigManager()
+            current_configured = config_manager.get_current_molecule_from_paso(2)
+            
+            if current_configured != molecula_seleccionada:
+                st.info(f"🔄 Configurando automáticamente: {molecula_seleccionada}")
+                
+                # Auto-configurar la nueva molécula
+                with st.spinner(f"Actualizando archivos de configuración para {molecula_seleccionada}..."):
+                    results = config_manager.auto_configure_molecule(molecula_seleccionada)
+                
+                # Mostrar resultados de la configuración
+                successful_updates = sum(results.values())
+                total_updates = len(results)
+                
+                if successful_updates == total_updates:
+                    st.success(f"✅ {molecula_seleccionada} configurada correctamente")
+                    st.balloons()
+                else:
+                    st.warning(f"⚠️ Configuración parcial: {successful_updates}/{total_updates} archivos actualizados")
+                
+                # Mostrar detalles de cada paso
+                with st.expander("Ver detalles de configuración"):
+                    for paso, success in results.items():
+                        status = "✅" if success else "❌"
+                        st.write(f"{status} {paso}: {'Exitoso' if success else 'Falló'}")
+                        
+        except Exception as e:
+            st.error(f"❌ Error en configuración automática: {e}")
     
     return molecula_seleccionada
 
@@ -1628,67 +1827,166 @@ def procesar_molecula_completa(nombre_molecula: str):
             st.warning("⚠️ ORCA no está disponible. Los cálculos no se pueden ejecutar.")
             st.info("Los archivos .inp se han generado y pueden ser ejecutados manualmente.")
 
+def mostrar_estado_configuracion():
+    """Mostrar el estado actual de configuración de la aplicación."""
+    st.subheader("⚙️ Estado de Configuración")
+    
+    try:
+        config_manager = MolecularConfigManager()
+        
+        # Detectar molécula configurada
+        current_molecule = config_manager.get_current_molecule_from_paso(2)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if current_molecule:
+                st.metric("Molécula Actual", current_molecule)
+            else:
+                st.metric("Molécula Actual", "No detectada")
+        
+        with col2:
+            molecules = config_manager.get_available_molecules()
+            st.metric("Moléculas Disponibles", len(molecules))
+        
+        with col3:
+            # Verificar archivos de pasos
+            pasos_existentes = 0
+            for paso_num, paso_path in config_manager.paso_files.items():
+                if paso_path.exists():
+                    pasos_existentes += 1
+            st.metric("Archivos de Paso", f"{pasos_existentes}/3")
+        
+        # Tabla de archivos de pasos
+        st.subheader("📁 Estado de Archivos")
+        
+        data = []
+        for paso_num, paso_path in config_manager.paso_files.items():
+            exists = paso_path.exists()
+            if exists:
+                # Obtener tamaño del archivo
+                size = paso_path.stat().st_size
+                modified = paso_path.stat().st_mtime
+                import time
+                mod_time = time.ctime(modified)
+                status = "✅ Existe"
+                info = f"{size} bytes, modificado: {mod_time}"
+            else:
+                status = "❌ No existe"
+                info = "Archivo no encontrado"
+            
+            data.append({
+                "Paso": f"paso_{paso_num}.txt",
+                "Estado": status,
+                "Información": info
+            })
+        
+        df_estado = pd.DataFrame(data)
+        st.dataframe(df_estado, use_container_width=True)
+        
+        # Botón para reconfigurar todo
+        st.subheader("🔄 Acciones")
+        
+        if current_molecule:
+            if st.button(f"Reconfigurar {current_molecule}", type="primary"):
+                with st.spinner("Reconfigurando..."):
+                    results = config_manager.auto_configure_molecule(current_molecule)
+                
+                successful_updates = sum(results.values())
+                total_updates = len(results)
+                
+                if successful_updates == total_updates:
+                    st.success("✅ Reconfiguración completada")
+                    st.rerun()
+                else:
+                    st.warning(f"⚠️ Reconfiguración parcial: {successful_updates}/{total_updates}")
+        
+        # Limpiar configuración
+        if st.button("🗑️ Limpiar configuración", type="secondary"):
+            if st.checkbox("Confirmar limpieza"):
+                for paso_path in config_manager.paso_files.values():
+                    try:
+                        if paso_path.exists():
+                            paso_path.unlink()
+                        st.success(f"Eliminado: {paso_path.name}")
+                    except Exception as e:
+                        st.error(f"Error eliminando {paso_path.name}: {e}")
+                
+                st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Error obteniendo estado de configuración: {e}")
+
 def mostrar_informacion_molecula(nombre_molecula: str):
     """Muestra información básica sobre la molécula seleccionada."""
-    molecula_path = Path("moleculas_xyz") / f"{nombre_molecula}.xyz"
-    
-    if not molecula_path.exists():
+    if not nombre_molecula:
+        st.warning("No hay molécula seleccionada")
         return
         
-    # Leer archivo XYZ
-    with open(molecula_path, 'r') as f:
-        lines = f.readlines()
+    try:
+        config_manager = MolecularConfigManager()
+        elements, coordinates, description = config_manager.read_xyz_file(nombre_molecula)
         
-    if len(lines) < 2:
-        st.error("Archivo XYZ inválido")
-        return
+        # Mostrar información
+        st.subheader(f"📋 Información de {nombre_molecula}")
         
-    num_atoms = int(lines[0].strip())
-    description = lines[1].strip() if len(lines) > 1 else "Sin descripción"
-    
-    # Parsear átomos
-    atoms = []
-    for i in range(2, min(len(lines), num_atoms + 2)):
-        parts = lines[i].strip().split()
-        if len(parts) >= 4:
-            element = parts[0]
-            x, y, z = map(float, parts[1:4])
-            atoms.append([element, x, y, z])
-    
-    # Mostrar información
-    st.subheader(f"📋 Información de {nombre_molecula}")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("Número de átomos", num_atoms)
+        col1, col2, col3 = st.columns(3)
         
-    with col2:
-        elementos = [atom[0] for atom in atoms]
-        elementos_unicos = list(set(elementos))
-        st.metric("Tipos de elementos", len(elementos_unicos))
+        with col1:
+            st.metric("Número de átomos", len(elements))
+            
+        with col2:
+            elementos_unicos = list(set(elements))
+            st.metric("Tipos de elementos", len(elementos_unicos))
+            
+        with col3:
+            formula = ""
+            from collections import Counter
+            contador = Counter(elements)
+            for elemento in sorted(contador.keys()):
+                count = contador[elemento]
+                if count > 1:
+                    formula += f"{elemento}₂" if count == 2 else f"{elemento}{count}"
+                else:
+                    formula += elemento
+            st.metric("Fórmula", formula)
         
-    with col3:
-        formula = ""
-        from collections import Counter
-        contador = Counter(elementos)
-        for elemento in sorted(contador.keys()):
-            count = contador[elemento]
-            if count > 1:
-                formula += f"{elemento}₂" if count == 2 else f"{elemento}{count}"
-            else:
-                formula += elemento
-        st.metric("Fórmula", formula)
-    
-    # Descripción
-    if description and description != "Sin descripción":
-        st.write(f"**Descripción:** {description}")
+        # Descripción
+        if description and description.strip():
+            st.write(f"**Descripción:** {description}")
+            
+        # Tabla de coordenadas
+        if len(elements) > 0:
+            df_coords = pd.DataFrame({
+                "Elemento": elements,
+                "X (Å)": coordinates[:, 0],
+                "Y (Å)": coordinates[:, 1], 
+                "Z (Å)": coordinates[:, 2]
+            })
+            st.subheader("🧮 Coordenadas atómicas")
+            st.dataframe(df_coords, use_container_width=True)
+            
+        # Información adicional
+        st.subheader("📊 Análisis Geométrico")
         
-    # Tabla de coordenadas
-    if atoms:
-        df_coords = pd.DataFrame(atoms, columns=["Elemento", "X (Å)", "Y (Å)", "Z (Å)"])
-        st.subheader("🧮 Coordenadas atómicas")
-        st.dataframe(df_coords, use_container_width=True)
+        # Centro de masa
+        center_of_mass = np.mean(coordinates, axis=0)
+        st.write(f"**Centro de masa:** ({center_of_mass[0]:.3f}, {center_of_mass[1]:.3f}, {center_of_mass[2]:.3f}) Å")
+        
+        # Dimensiones de la caja
+        min_coords = np.min(coordinates, axis=0)
+        max_coords = np.max(coordinates, axis=0)
+        dimensions = max_coords - min_coords
+        st.write(f"**Dimensiones:** {dimensions[0]:.3f} × {dimensions[1]:.3f} × {dimensions[2]:.3f} Å")
+        
+        # Radio de giro
+        if len(coordinates) > 1:
+            distances_from_center = np.linalg.norm(coordinates - center_of_mass, axis=1)
+            radius_of_gyration = np.sqrt(np.mean(distances_from_center**2))
+            st.write(f"**Radio de giro:** {radius_of_gyration:.3f} Å")
+        
+    except Exception as e:
+        st.error(f"❌ Error cargando información de la molécula: {e}")
 
 # ---------- MAIN MODIFICADO ----------
 def main():
@@ -1714,6 +2012,7 @@ def main():
         # Opciones de análisis
         st.sidebar.subheader("2. Tipo de Análisis")
         option = st.sidebar.radio("Selecciona una sección:", [
+            "⚙️ Estado de configuración",
             "📋 Información de la molécula",
             "🔄 Procesar con ORCA",
             "🧪 Molécula 3D",
@@ -1730,7 +2029,11 @@ def main():
         ])
         
         # Contenido principal
-        if option == "📋 Información de la molécula":
+        if option == "⚙️ Estado de configuración":
+            st.header("⚙️ Estado de Configuración del Sistema")
+            mostrar_estado_configuracion()
+            
+        elif option == "📋 Información de la molécula":
             mostrar_informacion_molecula(molecula_seleccionada)
             
         elif option == "🔄 Procesar con ORCA":
