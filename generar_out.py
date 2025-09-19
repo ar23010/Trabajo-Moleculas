@@ -8,7 +8,7 @@ import time
 import datetime
 
 # Ruta del ejecutable de ORCA (personalizable por el usuario)
-ORCA_BIN = "/home/jonathan/Trabajos_de_Orca/orca-6.1.0-f.0_linux_x86-64/bin/orca"
+ORCA_BIN = "/home/fercho/orca_6_1_0_linux_x86-64_shared_openmpi418/orca"
 
 class OrcaSpectrumExtractor:
     """Extrae IR y Raman por separado"""
@@ -63,14 +63,216 @@ class OrcaSpectrumExtractor:
                             "activity": activity, "depolarization": depol})
         return raman_spectrum
 
+    @staticmethod
+    def extract_scf_energy(content: str) -> Optional[str]:
+        """Extrae la última tabla completa de energía SCF total"""
+        # Patrón que captura desde "TOTAL SCF ENERGY" hasta "Virial Ratio"
+        scf_pattern = r"TOTAL SCF ENERGY\s+-+\s+(.*?Virial Ratio\s+:\s+[\d\.]+\s*)"
+        matches = re.findall(scf_pattern, content, re.DOTALL)
+        
+        # Si no encuentra con el patrón completo, intenta con uno más flexible
+        if not matches:
+            scf_pattern = r"TOTAL SCF ENERGY\s+-+\s+(.*?)(?=\n\n|\n\s*\n|$)"
+            matches = re.findall(scf_pattern, content, re.DOTALL)
+        
+        # Tomar la última ocurrencia (la más reciente)
+        if matches:
+            last_match = matches[-1]
+            # Limpiar espacios en blanco extra al final
+            last_match = last_match.strip()
+            
+            # Reconstruir la tabla manteniendo el formato original
+            table = "TOTAL SCF ENERGY\n"
+            table += "-" * 16 + "\n\n"
+            table += last_match
+            return table
+        
+        return None
+    
+    @staticmethod
+    def extract_orbital_energies(content: str) -> Optional[str]:
+        """Extrae la tabla de energías de orbitales"""
+        # Patrón que captura la tabla completa de energías de orbitales
+        orbital_pattern = r"ORBITAL ENERGIES\s+-+\s+(.*?)(?=\n\n|\n\s*\n|\Z)"
+        matches = re.findall(orbital_pattern, content, re.DOTALL)
+
+        # Tomar la última ocurrencia (la más reciente)
+        if matches:
+            last_match = matches[-1]
+            # Limpiar y formatear la tabla
+            lines = last_match.strip().splitlines()
+
+            # Reconstruir la tabla manteniendo el formato original
+            table = "ORBITAL ENERGIES\n"
+            table += "-" * 17 + "\n\n"
+            table += "\n".join(lines)
+            return table
+
+        return None
+    
+    @staticmethod
+    def extract_population_analysis(content: str) -> dict:
+        """Extrae los datos de población de Mulliken y Loewdin"""
+        result = {
+            "mulliken": {"atomic_charges": {}, "orbital_charges": {}},
+            "loewdin": {"atomic_charges": {}, "orbital_charges": {}}
+        }
+
+        # Extraer MULLIKEN
+        mulliken_pattern = r"MULLIKEN ATOMIC CHARGES\s+-+\s+(.*?)(?=Sum of atomic charges)"
+        mulliken_match = re.search(mulliken_pattern, content, re.DOTALL)
+
+        if mulliken_match:
+            lines = mulliken_match.group(1).strip().splitlines()
+            for line in lines:
+                if ':' in line:
+                    parts = line.split(':')
+                    atom = parts[0].strip()
+                    charge = float(parts[1].strip())
+                    result["mulliken"]["atomic_charges"][atom] = charge
+
+        # Extraer orbitales reducidos de MULLIKEN
+        mulliken_orbital_pattern = r"MULLIKEN REDUCED ORBITAL CHARGES\s+-+\s+(.*?)(?=\n\n|\Z)"
+        mulliken_orbital_match = re.search(mulliken_orbital_pattern, content, re.DOTALL)
+
+        if mulliken_orbital_match:
+            orbital_content = mulliken_orbital_match.group(1)
+            atom_blocks = re.split(r'\n(?=\s*\d+\s+\w\s+)', orbital_content)
+
+            for block in atom_blocks:
+                if not block.strip():
+                    continue
+
+                lines = block.strip().splitlines()
+                if not lines:
+                    continue
+
+                # Primera línea contiene el átomo
+                first_line = lines[0].split(':')
+                if len(first_line) >= 1:
+                    atom = first_line[0].strip()
+                    result["mulliken"]["orbital_charges"][atom] = {
+                        "orbitals": {},
+                        "s_total": 0.0,
+                        "p_total": 0.0,
+                        "d_total": 0.0
+                    }
+
+                    # Procesar líneas restantes
+                    for line in lines[1:]:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        # Buscar totales s, p, d
+                        if 's :' in line:
+                            parts = line.split('s :')
+                            if len(parts) > 1:
+                                result["mulliken"]["orbital_charges"][atom]["s_total"] = float(parts[1].strip())
+                        elif 'p :' in line:
+                            parts = line.split('p :')
+                            if len(parts) > 1:
+                                result["mulliken"]["orbital_charges"][atom]["p_total"] = float(parts[1].strip())
+                        elif 'd :' in line:
+                            parts = line.split('d :')
+                            if len(parts) > 1:
+                                result["mulliken"]["orbital_charges"][atom]["d_total"] = float(parts[1].strip())
+                        else:
+                            # Orbitales individuales
+                            if ':' in line:
+                                parts = line.split(':')
+                                if len(parts) >= 2:
+                                    orbital = parts[0].strip()
+                                    value = float(parts[1].strip())
+                                    result["mulliken"]["orbital_charges"][atom]["orbitals"][orbital] = value
+
+        # Extraer LOEWDIN (misma estructura que Mulliken)
+        loewdin_pattern = r"LOEWDIN ATOMIC CHARGES\s+-+\s+(.*?)(?=\n\n|\Z)"
+        loewdin_match = re.search(loewdin_pattern, content, re.DOTALL)
+
+        if loewdin_match:
+            lines = loewdin_match.group(1).strip().splitlines()
+            for line in lines:
+                if ':' in line:
+                    parts = line.split(':')
+                    atom = parts[0].strip()
+                    charge = float(parts[1].strip())
+                    result["loewdin"]["atomic_charges"][atom] = charge
+
+        # Extraer orbitales reducidos de LOEWDIN
+        loewdin_orbital_pattern = r"LOEWDIN REDUCED ORBITAL CHARGES\s+-+\s+(.*?)(?=\n\n|\Z)"
+        loewdin_orbital_match = re.search(loewdin_orbital_pattern, content, re.DOTALL)
+
+        if loewdin_orbital_match:
+            orbital_content = loewdin_orbital_match.group(1)
+            atom_blocks = re.split(r'\n(?=\s*\d+\s+\w\s+)', orbital_content)
+
+            for block in atom_blocks:
+                if not block.strip():
+                    continue
+
+                lines = block.strip().splitlines()
+                if not lines:
+                    continue
+
+                # Primera línea contiene el átomo
+                first_line = lines[0].split(':')
+                if len(first_line) >= 1:
+                    atom = first_line[0].strip()
+                    result["loewdin"]["orbital_charges"][atom] = {
+                        "orbitals": {},
+                        "s_total": 0.0,
+                        "p_total": 0.0,
+                        "d_total": 0.0
+                    }
+
+                    # Procesar líneas restantes
+                    for line in lines[1:]:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        # Buscar totales s, p, d
+                        if 's :' in line:
+                            parts = line.split('s :')
+                            if len(parts) > 1:
+                                result["loewdin"]["orbital_charges"][atom]["s_total"] = float(parts[1].strip())
+                        elif 'p :' in line:
+                            parts = line.split('p :')
+                            if len(parts) > 1:
+                                result["loewdin"]["orbital_charges"][atom]["p_total"] = float(parts[1].strip())
+                        elif 'd :' in line:
+                            parts = line.split('d :')
+                            if len(parts) > 1:
+                                result["loewdin"]["orbital_charges"][atom]["d_total"] = float(parts[1].strip())
+                        else:
+                            # Orbitales individuales
+                            if ':' in line:
+                                parts = line.split(':')
+                                if len(parts) >= 2:
+                                    orbital = parts[0].strip()
+                                    value = float(parts[1].strip())
+                                    result["loewdin"]["orbital_charges"][atom]["orbitals"][orbital] = value
+
+        return result
+
     def extract_spectra_from_file(self, file_path: Path) -> dict:
-        """Extrae IR y Raman de un archivo .out completo"""
+        """Extrae IR, Raman, SCF, orbital energies y población de un archivo .out completo"""
         if not Path(file_path).exists():
-            return {'ir_spectrum': [], 'raman_spectrum': []}
+            return {
+                'ir_spectrum': [], 
+                'raman_spectrum': [], 
+                'scf_energy': None, 
+                'orbital_energies': None,
+                'population_data': None
+            }
         content = Path(file_path).read_text(encoding="utf-8", errors="ignore")
         return {
             'ir_spectrum': self.extract_ir(content),
-            'raman_spectrum': self.extract_raman(content)
+            'raman_spectrum': self.extract_raman(content),
+            'scf_energy': self.extract_scf_energy(content),
+            'orbital_energies': self.extract_orbital_energies(content),
+            'population_data': self.extract_population_analysis(content)
         }
 
 
@@ -142,10 +344,16 @@ class OrcaOutputGenerator:
                 content = out_file.read_text(encoding="utf-8", errors="ignore")
                 ir_spectrum = self.spectrum_extractor.extract_ir(content)
                 raman_spectrum = self.spectrum_extractor.extract_raman(content)
+                scf_energy = self.spectrum_extractor.extract_scf_energy(content)
+                orbital_energies = self.spectrum_extractor.extract_orbital_energies(content)
+                population_data = self.spectrum_extractor.extract_population_analysis(content)
 
                 # Guardar individualmente
                 ir_path = self._save_ir(ir_spectrum, out_dir, inp_name)
                 raman_path = self._save_raman(raman_spectrum, out_dir, inp_name)
+                scf_path = self._save_scf_energy(scf_energy, out_dir, inp_name)
+                orbital_path = self._save_orbital_energies(orbital_energies, out_dir, inp_name)
+                population_path = self._save_population_analysis(population_data, out_dir, inp_name)
 
                 # ✅ Combinar automáticamente después de guardar los individuales
                 self.combine_existing_spectra_files()
@@ -198,6 +406,81 @@ class OrcaOutputGenerator:
                 f.write(f"{p['mode']:>5}: {p['frequency']:>11}   "
                         f"{p['activity']:>9}   {p['depolarization']:>12}\n")
         print(f"📊 Raman guardado en: {raman_file}")
+
+    def _save_scf_energy(self, scf_energy, out_dir, base_name):
+        """Guarda la tabla de energía SCF en un archivo separado"""
+        if not scf_energy:
+            return
+        modelos_dir = Path.cwd() / "modelos"
+        modelos_dir.mkdir(parents=True, exist_ok=True)
+
+        scf_file = modelos_dir / f"FINAL_scf_energy.txt"
+        with open(scf_file, 'w') as f:
+            f.write(scf_energy)
+        print(f"📊 Energía SCF guardada en: {scf_file}")
+
+    def _save_orbital_energies(self, orbital_energies, out_dir, base_name):
+        """Guarda la tabla de energías orbitales en un archivo separado"""
+        if not orbital_energies:
+            return
+        modelos_dir = Path.cwd() / "modelos"
+        modelos_dir.mkdir(parents=True, exist_ok=True)
+
+        orbital_file = modelos_dir / f"FINAL_orbital_energies.txt"
+        with open(orbital_file, 'w') as f:
+            f.write(orbital_energies)
+        print(f"📊 Energías orbitales guardadas en: {orbital_file}")
+
+    def _save_population_analysis(self, population_data, out_dir, base_name):
+        """Guarda el análisis de población en un archivo separado"""
+        if not population_data or (not population_data["mulliken"]["atomic_charges"] and not population_data["loewdin"]["atomic_charges"]):
+            return
+
+        modelos_dir = Path.cwd() / "modelos"
+        modelos_dir.mkdir(parents=True, exist_ok=True)
+
+        pop_file = modelos_dir / f"FINAL_population_analysis.txt"
+
+        with open(pop_file, 'w') as f:
+            # Escribir datos de Mulliken
+            f.write("MULLIKEN POPULATION ANALYSIS\n")
+            f.write("=" * 30 + "\n\n")
+            f.write("Atomic Charges:\n")
+            f.write("-" * 15 + "\n")
+            for atom, charge in population_data["mulliken"]["atomic_charges"].items():
+                f.write(f"{atom}: {charge:10.6f}\n")
+
+            f.write("\nReduced Orbital Charges:\n")
+            f.write("-" * 25 + "\n")
+            for atom, data in population_data["mulliken"]["orbital_charges"].items():
+                f.write(f"\n{atom}:\n")
+                f.write(f"  s total: {data['s_total']:10.6f}\n")
+                f.write(f"  p total: {data['p_total']:10.6f}\n")
+                if data['d_total'] != 0.0:
+                    f.write(f"  d total: {data['d_total']:10.6f}\n")
+                for orbital, value in data["orbitals"].items():
+                    f.write(f"  {orbital}: {value:10.6f}\n")
+
+            # Escribir datos de Loewdin
+            f.write("\n\nLOEWDIN POPULATION ANALYSIS\n")
+            f.write("=" * 30 + "\n\n")
+            f.write("Atomic Charges:\n")
+            f.write("-" * 15 + "\n")
+            for atom, charge in population_data["loewdin"]["atomic_charges"].items():
+                f.write(f"{atom}: {charge:10.6f}\n")
+
+            f.write("\nReduced Orbital Charges:\n")
+            f.write("-" * 25 + "\n")
+            for atom, data in population_data["loewdin"]["orbital_charges"].items():
+                f.write(f"\n{atom}:\n")
+                f.write(f"  s total: {data['s_total']:10.6f}\n")
+                f.write(f"  p total: {data['p_total']:10.6f}\n")
+                if data['d_total'] != 0.0:
+                    f.write(f"  d total: {data['d_total']:10.6f}\n")
+                for orbital, value in data["orbitals"].items():
+                    f.write(f"  {orbital}: {value:10.6f}\n")
+
+        print(f"📊 Análisis de población guardado en: {pop_file}")    
 
     def combine_existing_spectra_files(self):
         """
@@ -321,7 +604,16 @@ class OrcaOutputGenerator:
         ir_raman_file = molecule_out_dir / f"{molecule_name}-ir-raman.out"
         if ir_raman_file.exists():
             return self.spectrum_extractor.extract_spectra_from_file(ir_raman_file)
-        return {'ir_spectrum': [], 'raman_spectrum': []}
+        return {'ir_spectrum': [], 'raman_spectrum': [], 'scf_energy': None}
+    
+    def get_population_data(self, molecule_name: str) -> Dict[str, Any]:
+        """Retorna los datos de análisis de población para una molécula."""
+        molecule_out_dir = self.base_out_dir / molecule_name
+        ir_raman_file = molecule_out_dir / f"{molecule_name}-ir-raman.out"
+        if ir_raman_file.exists():
+            content = ir_raman_file.read_text(encoding="utf-8", errors="ignore")
+            return self.spectrum_extractor.extract_population_analysis(content)
+        return {"mulliken": {"atomic_charges": {}, "orbital_charges": {}}, "loewdin": {"atomic_charges": {}, "orbital_charges": {}}}
 
 
 def main():
@@ -332,8 +624,12 @@ def main():
     parser.add_argument("--all", "-a", action="store_true", help="Procesar todas las moléculas")
     parser.add_argument("--list", "-l", action="store_true", help="Listar moléculas disponibles")
     parser.add_argument("--spectra", "-s", help="Mostrar espectros de molécula específica")
+    parser.add_argument("--scf", help="Mostrar energía SCF de molécula específica")
+    parser.add_argument("--orbitals", help="Mostrar energías orbitales de molécula específica")
+    parser.add_argument("--population", "-p", help="Mostrar análisis de población de molécula específica")
     args = parser.parse_args()
     generator = OrcaOutputGenerator()
+    
     if args.list:
         molecules = generator.get_available_molecules()
         if molecules:
@@ -341,6 +637,7 @@ def main():
             for mol in molecules: print(f"  - {mol}")
         else:
             print("No hay moléculas disponibles")
+            
     elif args.spectra:
         spectra = generator.get_spectra_data(args.spectra)
         print(f"\n📊 ESPECTROS FINALES para {args.spectra}:")
@@ -357,12 +654,75 @@ def main():
         for peak in spectra['raman_spectrum']:
             print(f"{peak['mode']:>5}: {peak['frequency']:>11}   "
                   f"{peak['activity']:>9}   {peak['depolarization']:>12}")
+                  
+    elif args.scf:
+        spectra = generator.get_spectra_data(args.scf)
+        if spectra['scf_energy']:
+            print(f"\n📊 ENERGÍA SCF para {args.scf}:")
+            print(spectra['scf_energy'])
+        else:
+            print(f"No se encontró información de energía SCF para {args.scf}")
+            
+    elif args.orbitals:
+        spectra = generator.get_spectra_data(args.orbitals)
+        if spectra['orbital_energies']:
+            print(f"\n📊 ENERGÍAS ORBITALES para {args.orbitals}:")
+            print(spectra['orbital_energies'])
+        else:
+            print(f"No se encontró información de energías orbitales para {args.orbitals}")
+            
+    elif args.population:
+        # Necesitamos una nueva función para obtener datos de población
+        population_data = generator.get_population_data(args.population)
+        if population_data and (population_data["mulliken"]["atomic_charges"] or population_data["loewdin"]["atomic_charges"]):
+            print(f"\n📊 ANÁLISIS DE POBLACIÓN para {args.population}:")
+            
+            print("\nMULLIKEN POPULATION ANALYSIS")
+            print("=" * 30)
+            print("\nAtomic Charges:")
+            print("-" * 15)
+            for atom, charge in population_data["mulliken"]["atomic_charges"].items():
+                print(f"{atom}: {charge:10.6f}")
+            
+            print("\nReduced Orbital Charges:")
+            print("-" * 25)
+            for atom, data in population_data["mulliken"]["orbital_charges"].items():
+                print(f"\n{atom}:")
+                print(f"  s total: {data['s_total']:10.6f}")
+                print(f"  p total: {data['p_total']:10.6f}")
+                if data['d_total'] != 0.0:
+                    print(f"  d total: {data['d_total']:10.6f}")
+                for orbital, value in data["orbitals"].items():
+                    print(f"  {orbital}: {value:10.6f}")
+            
+            print("\n\nLOEWDIN POPULATION ANALYSIS")
+            print("=" * 30)
+            print("\nAtomic Charges:")
+            print("-" * 15)
+            for atom, charge in population_data["loewdin"]["atomic_charges"].items():
+                print(f"{atom}: {charge:10.6f}")
+            
+            print("\nReduced Orbital Charges:")
+            print("-" * 25)
+            for atom, data in population_data["loewdin"]["orbital_charges"].items():
+                print(f"\n{atom}:")
+                print(f"  s total: {data['s_total']:10.6f}")
+                print(f"  p total: {data['p_total']:10.6f}")
+                if data['d_total'] != 0.0:
+                    print(f"  d total: {data['d_total']:10.6f}")
+                for orbital, value in data["orbitals"].items():
+                    print(f"  {orbital}: {value:10.6f}")
+        else:
+            print(f"No se encontró información de análisis de población para {args.population}")
+            
     elif args.molecule:
         results = generator.process_molecule(args.molecule)
         print(f"\nResultados: {results}")
+        
     elif args.all:
         results = generator.process_all_molecules()
         print(f"\nResultados finales: {results['summary']}")
+        
     else:
         parser.print_help()
 
