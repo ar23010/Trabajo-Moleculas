@@ -767,8 +767,8 @@ def dibujar_energias_orbitales(molecule_name):
         lumo_energy = df.loc[lumo_idx, 'E(Eh)']
         gap_energy = lumo_energy - homo_energy
     
-    # Crear figura con 4 subplots (2x2)
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+    # Crear figura con 3 subplots en filas diferentes (3x1)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 15))
     fig.suptitle(f'Análisis de Energías Orbitales - {molecule_name} (Hartree)', fontsize=16, fontweight='bold')
     
     # 1. Diagrama de niveles de energía
@@ -797,32 +797,19 @@ def dibujar_energias_orbitales(molecule_name):
     # Añadir línea en energía cero
     ax1.axvline(x=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
     
-    # 2. Histograma comparativo
-    bins = np.linspace(df['E(Eh)'].min() - 0.05, df['E(Eh)'].max() + 0.05, 15)
-    ax2.hist(df[df['Tipo'] == 'Ocupado']['E(Eh)'], bins=bins, 
-             alpha=0.7, label='Ocupados', color='blue', edgecolor='black')
-    ax2.hist(df[df['Tipo'] == 'Virtual']['E(Eh)'], bins=bins, 
-             alpha=0.7, label='Virtuales', color='red', edgecolor='black')
-    ax2.axvline(x=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
-    ax2.set_xlabel('Energía (Eh)', fontweight='bold')
-    ax2.set_ylabel('Frecuencia', fontweight='bold')
-    ax2.set_title('Distribución de Energías Orbitales', fontweight='bold')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-    
-    # 3. Diagrama de dispersión Ocupación vs Energía
-    scatter = ax3.scatter(df['E(Eh)'], df['OCC'], 
+    # 2. Diagrama de dispersión Ocupación vs Energía
+    scatter = ax2.scatter(df['E(Eh)'], df['OCC'], 
                          c=df['E(Eh)'], cmap='viridis', 
                          s=80, alpha=0.8, edgecolor='black', linewidth=0.5)
-    ax3.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='E=0 Eh')
-    ax3.set_xlabel('Energía (Eh)', fontweight='bold')
-    ax3.set_ylabel('Ocupación', fontweight='bold')
-    ax3.set_title('Ocupación vs Energía', fontweight='bold')
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
-    plt.colorbar(scatter, ax=ax3, label='Energía (Eh)')
+    ax2.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='E=0 Eh')
+    ax2.set_xlabel('Energía (Eh)', fontweight='bold')
+    ax2.set_ylabel('Ocupación', fontweight='bold')
+    ax2.set_title('Ocupación vs Energía', fontweight='bold')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    plt.colorbar(scatter, ax=ax2, label='Energía (Eh)')
     
-    # 4. Gráfico de barras de energías orbitales
+    # 3. Gráfico de barras horizontal de energías orbitales
     colors_bars = []
     for _, row in df.iterrows():
         if row['HOMO_LUMO'] == 'HOMO':
@@ -834,21 +821,22 @@ def dibujar_energias_orbitales(molecule_name):
         else:
             colors_bars.append('red')
     
-    bars = ax4.bar(range(len(df)), df['E(Eh)'], color=colors_bars, alpha=0.8, edgecolor='black')
-    ax4.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
-    ax4.set_xlabel('Número Orbital', fontweight='bold')
-    ax4.set_ylabel('Energía (Eh)', fontweight='bold')
-    ax4.set_title('Energías Orbitales Individuales', fontweight='bold')
-    ax4.grid(True, alpha=0.3, axis='y')
+    # Usar barh para barras horizontales
+    bars = ax3.barh(range(len(df)), df['E(Eh)'], color=colors_bars, alpha=0.8, edgecolor='black')
+    ax3.axvline(x=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+    ax3.set_ylabel('Número Orbital', fontweight='bold')
+    ax3.set_xlabel('Energía (Eh)', fontweight='bold')
+    ax3.set_title('Energías Orbitales Individuales (Horizontal)', fontweight='bold')
+    ax3.grid(True, alpha=0.3, axis='x')
     
-    # Añadir etiquetas a las barras solo para valores significativos
+    # Añadir etiquetas a las barras horizontales solo para valores significativos
     for i, (bar, valor) in enumerate(zip(bars, df['E(Eh)'])):
         if abs(valor) > 0.1:  # Solo etiquetar valores significativos
-            height = bar.get_height()
-            va = 'bottom' if height > 0 else 'top'
-            y_offset = 0.02 if height > 0 else -0.02
-            ax4.text(bar.get_x() + bar.get_width()/2., height + y_offset,
-                    f'{valor:.3f}', ha='center', va=va, fontsize=8, fontweight='bold')
+            width = bar.get_width()
+            ha = 'left' if width > 0 else 'right'
+            x_offset = 0.02 if width > 0 else -0.02
+            ax3.text(width + x_offset, bar.get_y() + bar.get_height()/2.,
+                    f'{valor:.3f}', ha=ha, va='center', fontsize=8, fontweight='bold')
     
     plt.tight_layout()
     
