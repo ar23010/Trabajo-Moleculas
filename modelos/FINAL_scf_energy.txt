@@ -1,0 +1,15 @@
+TOTAL SCF ENERGY
+----------------
+
+Total Energy       :        -76.39602027049408 Eh           -2078.84140 eV
+
+Components:
+Nuclear Repulsion  :          9.19391311510356 Eh             250.17909 eV
+Electronic Energy  :        -85.58995766252585 Eh           -2329.02115 eV
+One Electron Energy:       -122.93115601215999 Eh           -3345.12682 eV
+Two Electron Energy:         37.34119834963413 Eh            1016.10566 eV
+
+Virial components:
+Potential Energy   :       -152.31205025291092 Eh           -4144.62160 eV
+Kinetic Energy     :         75.91602998241686 Eh            2065.78020 eV
+Virial Ratio       :          2.00632264738012

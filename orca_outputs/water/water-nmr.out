@@ -169,9 +169,9 @@ interface, adapt or use parts of their codes:
 
 
   ***********************************
-  * Starting time: Mon Sep 15 23:00:52 2025
+  * Starting time: Sat Sep 20 09:50:37 2025
   * Host name:     debian
-  * Process ID:    36207
+  * Process ID:    58921
   * Working dir.:  /home/jonathan/Trabajo-Moleculas/orca_outputs/water
   ***********************************
 
@@ -426,11 +426,11 @@ Calculating Nuclear repulsion               ... done (  0.0 sec) ENN=      9.193
 
 Diagonalization of the overlap matrix:
 Smallest eigenvalue                        ... 2.932e-03
-Time for diagonalization                   ...    0.004 sec
+Time for diagonalization                   ...    0.000 sec
 Threshold for overlap eigenvalues          ... 1.000e-07
 Number of eigenvalues below threshold      ... 0
-Time for construction of square roots      ...    0.001 sec
-Total time needed                          ...    0.005 sec
+Time for construction of square roots      ...    0.000 sec
+Total time needed                          ...    0.001 sec
 
 -------------------
 DFT GRID GENERATION
@@ -520,10 +520,10 @@ Total number of batches                      ...       69
 Average number of points per batch           ...      123
 Average number of grid points per atom       ...     2843
 UseSFitting                                  ... on
-Grids setup in   0.2 sec
+Grids setup in   0.1 sec
 Initializing property integral containers    ... done (  0.0 sec)
 
-SHARK setup successfully completed in   0.3 seconds
+SHARK setup successfully completed in   0.1 seconds
 
 Maximum memory used throughout the entire STARTUP-calculation: 8.6 MB
 -------------------------------------------------------------------------------
@@ -654,9 +654,9 @@ Iteration    Energy (Eh)           Delta-E    RMSDP     MaxDP     DIISErr   Damp
 ---------------------------------------S-O-S-C-F--------------------------------------
 Iteration    Energy (Eh)           Delta-E    RMSDP     MaxDP     MaxGrad    Time(sec)
 --------------------------------------------------------------------------------------
-    1    -76.4224107537324215     0.00e+00  3.42e-09  2.83e-08  6.71e-09     0.2
+    1    -76.4224107537311852     0.00e+00  2.15e-11  2.99e-10  3.97e-11     0.1
                *** Restarting incremental Fock matrix formation ***
-    2    -76.4224107537308583     1.56e-12  9.44e-10  1.02e-08  1.33e-08     0.1
+    2    -76.4224107537311994    -1.42e-14  0.00e+00  0.00e+00  1.62e-10     0.1
                   *** Gradient check signals convergence ***
 
                *****************************************************
@@ -664,48 +664,48 @@ Iteration    Energy (Eh)           Delta-E    RMSDP     MaxDP     MaxGrad    Tim
                *           SCF CONVERGED AFTER   2 CYCLES          *
                *****************************************************
 
-Recomputing exchange energy using gridx3       ... done (    0.086 sec)
-Old exchange energy                            :     -1.785090436 Eh
+Recomputing exchange energy using gridx3       ... done (    0.084 sec)
+Old exchange energy                            :     -1.785090437 Eh
 New exchange energy                            :     -1.785075683 Eh
-Exchange energy change after final integration :      0.000014753 Eh
-Total energy after final integration           :    -76.422396002 Eh
+Exchange energy change after final integration :      0.000014754 Eh
+Total energy after final integration           :    -76.422396000 Eh
              **** ENERGY FILE WAS UPDATED (water-nmr.en.tmp) ****
 
 ----------------
 TOTAL SCF ENERGY
 ----------------
 
-Total Energy       :        -76.42239600211539 Eh           -2079.55912 eV
+Total Energy       :        -76.42239599991412 Eh           -2079.55912 eV
 
 Components:
 Nuclear Repulsion  :          9.19391311510356 Eh             250.17909 eV
-Electronic Energy  :        -85.61632387056588 Eh           -2329.73861 eV
-One Electron Energy:       -123.03364837914781 Eh           -3347.91578 eV
-Two Electron Energy:         37.41732450858193 Eh            1018.17716 eV
+Electronic Energy  :        -85.61632386883477 Eh           -2329.73861 eV
+One Electron Energy:       -123.03364836994882 Eh           -3347.91578 eV
+Two Electron Energy:         37.41732450111405 Eh            1018.17716 eV
 
 Virial components:
-Potential Energy   :       -152.66184251387452 Eh           -4154.13993 eV
-Kinetic Energy     :         76.23944651175913 Eh            2074.58081 eV
-Virial Ratio       :          2.00239966970810
+Potential Energy   :       -152.66184249735221 Eh           -4154.13993 eV
+Kinetic Energy     :         76.23944649743810 Eh            2074.58081 eV
+Virial Ratio       :          2.00239966986752
 
 DFT components:
 N(Alpha)           :        5.000031283348 electrons
 N(Beta)            :        5.000031283348 electrons
-N(Total)           :       10.000062566695 electrons
-E(X)               :       -7.114784012447 Eh       
-E(C)               :       -0.401525665350 Eh       
-E(XC)              :       -7.516309677796 Eh       
+N(Total)           :       10.000062566696 electrons
+E(X)               :       -7.114784011053 Eh       
+E(C)               :       -0.401525665306 Eh       
+E(XC)              :       -7.516309676359 Eh       
 
 ---------------
 SCF CONVERGENCE
 ---------------
 
-  Last Energy change         ...   -1.5632e-12  Tolerance :   1.0000e-08
-  Last MAX-Density change    ...    1.0224e-08  Tolerance :   1.0000e-07
-  Last RMS-Density change    ...    9.4361e-10  Tolerance :   5.0000e-09
-  Last DIIS Error            ...    1.1820e-07  Tolerance :   5.0000e-07
-  Last Orbital Gradient      ...    1.3254e-08  Tolerance :   1.0000e-05
-  Last Orbital Rotation      ...    6.9272e-09  Tolerance :   1.0000e-05
+  Last Energy change         ...    1.4211e-14  Tolerance :   1.0000e-08
+  Last MAX-Density change    ...    0.0000e+00  Tolerance :   1.0000e-07
+  Last RMS-Density change    ...    0.0000e+00  Tolerance :   5.0000e-09
+  Last DIIS Error            ...    4.1443e-10  Tolerance :   5.0000e-07
+  Last Orbital Gradient      ...    1.6214e-10  Tolerance :   1.0000e-05
+  Last Orbital Rotation      ...    0.0000e+00  Tolerance :   1.0000e-05
 
 
 ----------------
@@ -829,28 +829,28 @@ TIMINGS
 
 Total SCF time: 0 days 0 hours 0 min 0 sec 
 
-Total time                  ....       0.428 sec
-Sum of individual times     ....       0.370 sec  ( 86.3%)
+Total time                  ....       0.309 sec
+Sum of individual times     ....       0.267 sec  ( 86.5%)
 
-SCF preparation             ....       0.041 sec  (  9.5%)
-Fock matrix formation       ....       0.325 sec  ( 75.9%)
+SCF preparation             ....       0.035 sec  ( 11.2%)
+Fock matrix formation       ....       0.229 sec  ( 74.2%)
   Startup                   ....       0.000 sec  (  0.1% of F)
-  Split-RI-J                ....       0.016 sec  (  5.1% of F)
-  Chain of spheres X        ....       0.274 sec  ( 84.3% of F)
-  XC integration            ....       0.085 sec  ( 26.2% of F)
-    Basis function eval.    ....       0.035 sec  ( 41.3% of XC)
-    Density eval.           ....       0.015 sec  ( 18.1% of XC)
-    XC-Functional eval.     ....       0.015 sec  ( 17.9% of XC)
-    XC-Potential eval.      ....       0.011 sec  ( 13.2% of XC)
+  Split-RI-J                ....       0.010 sec  (  4.4% of F)
+  Chain of spheres X        ....       0.185 sec  ( 81.0% of F)
+  XC integration            ....       0.069 sec  ( 29.9% of F)
+    Basis function eval.    ....       0.028 sec  ( 41.5% of XC)
+    Density eval.           ....       0.013 sec  ( 18.8% of XC)
+    XC-Functional eval.     ....       0.012 sec  ( 17.8% of XC)
+    XC-Potential eval.      ....       0.009 sec  ( 13.3% of XC)
 Diagonalization             ....       0.000 sec  (  0.0%)
 Density matrix formation    ....       0.000 sec  (  0.1%)
 Total Energy calculation    ....       0.000 sec  (  0.1%)
-Population analysis         ....       0.001 sec  (  0.3%)
+Population analysis         ....       0.001 sec  (  0.4%)
 Orbital Transformation      ....       0.000 sec  (  0.1%)
 Orbital Orthonormalization  ....       0.000 sec  (  0.0%)
-DIIS solution               ....       0.001 sec  (  0.1%)
-SOSCF solution              ....       0.001 sec  (  0.3%)
-Finished LeanSCF after   0.4 sec
+DIIS solution               ....       0.001 sec  (  0.2%)
+SOSCF solution              ....       0.001 sec  (  0.2%)
+Finished LeanSCF after   0.3 sec
 
 Maximum memory used throughout the entire LEANSCF-calculation: 4.4 MB
 
@@ -886,7 +886,7 @@ Dispersion correction           -0.000573874
 
 
 -------------------------   --------------------
-FINAL SINGLE POINT ENERGY       -76.422969876539
+FINAL SINGLE POINT ENERGY       -76.422969874338
 -------------------------   --------------------
 
 
@@ -953,16 +953,16 @@ Method             : SCF
 Type of density    : Electron Density
 Multiplicity       :   1
 Irrep              :   0
-Energy             :   -76.4223960021153914 Eh
+Energy             :   -76.4223959999141158 Eh
 Basis              : AO
                                 X                 Y                 Z
-Electronic contribution:     -0.000000021      -0.153635462       0.000000004
+Electronic contribution:     -0.000000021      -0.153635439       0.000000003
 Nuclear contribution   :      0.000000000       0.975526666       0.000000000
                         -----------------------------------------
-Total Dipole Moment    :     -0.000000021       0.821891204       0.000000004
+Total Dipole Moment    :     -0.000000021       0.821891227       0.000000003
                         -----------------------------------------
-Magnitude (a.u.)       :      0.821891204
-Magnitude (Debye)      :      2.089081419
+Magnitude (a.u.)       :      0.821891227
+Magnitude (Debye)      :      2.089081478
 
 
 
@@ -1086,9 +1086,9 @@ List of optional additional citations
 
 Timings for individual modules:
 
-Sum of individual times          ...        0.930 sec (=   0.015 min)
-Startup calculation              ...        0.364 sec (=   0.006 min)  39.2 %
-SCF iterations                   ...        0.495 sec (=   0.008 min)  53.2 %
-Property calculations            ...        0.071 sec (=   0.001 min)   7.6 %
+Sum of individual times          ...        0.597 sec (=   0.010 min)
+Startup calculation              ...        0.153 sec (=   0.003 min)  25.7 %
+SCF iterations                   ...        0.373 sec (=   0.006 min)  62.5 %
+Property calculations            ...        0.071 sec (=   0.001 min)  11.8 %
                              ****ORCA TERMINATED NORMALLY****
-TOTAL RUN TIME: 0 days 0 hours 0 minutes 1 seconds 148 msec
+TOTAL RUN TIME: 0 days 0 hours 0 minutes 0 seconds 771 msec

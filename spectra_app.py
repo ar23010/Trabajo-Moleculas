@@ -142,6 +142,194 @@ def parse_orca_frequencies(out_file_path):
         print(f"Error leyendo frecuencias de ORCA: {e}")
         return {'ir': pd.DataFrame(), 'raman': pd.DataFrame()}
 
+def parse_orca_scf_energies(out_file_path):
+    """
+    Extrae las energías SCF de un archivo .out de ORCA.
+    Retorna diccionario con las energías en Hartree y eV.
+    """
+    try:
+        with open(out_file_path, 'r') as f:
+            content = f.read()
+        
+        energies = {}
+        
+        # Buscar sección de energías SCF
+        if "TOTAL SCF ENERGY" in content:
+            energy_section = content.split("TOTAL SCF ENERGY")[1].split("ORBITAL ENERGIES")[0] if "ORBITAL ENERGIES" in content else content.split("TOTAL SCF ENERGY")[1]
+            
+            lines = energy_section.split('\n')
+            for line in lines:
+                line = line.strip()
+                
+                # Total Energy
+                if line.startswith("Total Energy"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['Total Energy'] = eh_value
+                            energies['Total Energy (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Nuclear Repulsion
+                elif line.startswith("Nuclear Repulsion"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['Nuclear Repulsion'] = eh_value
+                            energies['Nuclear Repulsion (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Electronic Energy
+                elif line.startswith("Electronic Energy"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['Electronic Energy'] = eh_value
+                            energies['Electronic Energy (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # One Electron Energy
+                elif line.startswith("One Electron Energy"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['One Electron Energy'] = eh_value
+                            energies['One Electron Energy (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Two Electron Energy
+                elif line.startswith("Two Electron Energy"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['Two Electron Energy'] = eh_value
+                            energies['Two Electron Energy (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Potential Energy
+                elif line.startswith("Potential Energy"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['Potential Energy'] = eh_value
+                            energies['Potential Energy (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Kinetic Energy
+                elif line.startswith("Kinetic Energy"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            eh_value = float(parts[3])
+                            ev_value = float(parts[5])
+                            energies['Kinetic Energy'] = eh_value
+                            energies['Kinetic Energy (eV)'] = ev_value
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Virial Ratio
+                elif line.startswith("Virial Ratio"):
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        try:
+                            virial_value = float(parts[2])
+                            energies['Virial Ratio'] = virial_value
+                        except (ValueError, IndexError):
+                            pass
+        
+        return energies
+        
+    except Exception as e:
+        print(f"Error leyendo energías SCF de ORCA: {e}")
+        return {}
+
+def parse_orca_orbital_energies(out_file_path):
+    """
+    Extrae las energías orbitales de un archivo .out de ORCA.
+    Retorna DataFrame con datos orbitales (NO, OCC, E(Eh)).
+    """
+    try:
+        # Primero intentar leer desde archivo FINAL_orbital_energies.txt
+        final_file = Path("modelos/FINAL_orbital_energies.txt")
+        if final_file.exists():
+            with open(final_file, 'r') as f:
+                content = f.read()
+            
+            lines = content.strip().split('\n')
+            data = []
+            
+            for line in lines[3:]:  # Saltar encabezados
+                if line.strip() and not line.startswith('*'):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        try:
+                            # Formato: NO OCC E(Eh) E(eV)
+                            data.append({
+                                'NO': int(parts[0]),
+                                'OCC': float(parts[1]),
+                                'E(Eh)': float(parts[2])
+                            })
+                        except (ValueError, IndexError):
+                            # Saltar líneas que no se pueden parsear (como encabezados)
+                            continue
+            
+            if data:
+                return pd.DataFrame(data)
+        
+        # Si no existe el archivo final, intentar extraer del .out de ORCA
+        with open(out_file_path, 'r') as f:
+            content = f.read()
+        
+        # Buscar sección de energías orbitales
+        if "ORBITAL ENERGIES" in content:
+            sections = content.split("ORBITAL ENERGIES")
+            if len(sections) > 1:
+                orbital_section = sections[-1]  # Tomar la última sección
+                lines = orbital_section.split('\n')
+                
+                data = []
+                for line in lines[3:]:  # Saltar encabezados
+                    if line.strip() and not line.startswith('*'):
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            try:
+                                # Formato típico: NO OCC E(Eh) E(eV)
+                                data.append({
+                                    'NO': int(parts[0]),
+                                    'OCC': float(parts[1]),
+                                    'E(Eh)': float(parts[2])
+                                })
+                            except (ValueError, IndexError):
+                                continue
+                
+                if data:
+                    return pd.DataFrame(data)
+        
+        # Si no encuentra datos, retornar DataFrame vacío
+        return pd.DataFrame()
+        
+    except Exception as e:
+        print(f"Error leyendo energías orbitales de ORCA: {e}")
+        return pd.DataFrame()
+
 def get_molecule_outputs(molecule_name):
     """
     Retorna los paths a los archivos .out de ORCA para una molécula específica.
@@ -373,6 +561,373 @@ def dibujar_espectro_ir(molecule_name):
     # Mostrar tabla de datos
     if st.checkbox("Ver tabla de frecuencias"):
         st.dataframe(ir_data, use_container_width=True)
+    
+    return fig
+
+#----- Gráfico de Energías SCF (DATOS REALES DE ORCA) -----
+def dibujar_energias_scf(molecule_name):
+    """Genera gráficos de análisis energético usando datos reales de ORCA"""
+    
+    # Verificar archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    if not outputs['opt'].exists():
+        st.error(f"⚠️ No se encontró el archivo de optimización para {molecule_name}")
+        st.info("💡 Ejecuta primero el procesamiento completo con ORCA para generar los archivos necesarios.")
+        return None
+    
+    # Leer datos de energías SCF
+    energias_eh = parse_orca_scf_energies(outputs['opt'])
+    
+    if not energias_eh:
+        st.error(f"⚠️ No se pudieron extraer las energías SCF de {molecule_name}")
+        return None
+    
+    # Crear figura con 2 gráficos (1x2)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle(f'Análisis Energético - {molecule_name}', fontsize=16, fontweight='bold')
+    
+    # 1. Gráfico de energías electrónicas (Un electrón vs Dos electrones)
+    electron_categorias = ['Nuclear\nRepulsion', 'One\nElectron', 'Two\nElectron', 'Electronic\nTotal', 'Total\nEnergy']
+    electron_valores_eh = [
+        energias_eh.get('Nuclear Repulsion', 0),
+        energias_eh.get('One Electron Energy', 0),
+        energias_eh.get('Two Electron Energy', 0),
+        energias_eh.get('Electronic Energy', 0),
+        energias_eh.get('Total Energy', 0)
+    ]
+    
+    colors = ['#FF6B6B', '#8E44AD', '#E67E22', '#4ECDC4', '#2E86AB']
+    bars = ax1.bar(electron_categorias, electron_valores_eh, color=colors, alpha=0.8, edgecolor='black', linewidth=0.5)
+    ax1.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+    ax1.set_ylabel('Energía (Eh)', fontweight='bold')
+    ax1.set_title('Componentes de Energía Molecular (Hartree)', fontweight='bold')
+    ax1.grid(axis='y', alpha=0.3, linestyle='--')
+    
+    # Añadir valores en las barras (Eh)
+    for bar, valor in zip(bars, electron_valores_eh):
+        if valor != 0:  # Solo mostrar si el valor existe
+            height = bar.get_height()
+            va_position = 'bottom' if height > 0 else 'top'
+            y_offset = abs(height) * 0.02 if height > 0 else -abs(height) * 0.02
+            ax1.text(bar.get_x() + bar.get_width()/2., height + y_offset,
+                     f'{valor:.2f} Eh', ha='center', va=va_position, fontsize=8, fontweight='bold')
+    
+    # 2. Gráfico del teorema del virial
+    virial_categorias = ['Energía Potencial', 'Energía Cinética', 'Energía Total']
+    virial_valores_eh = [
+        energias_eh.get('Potential Energy', 0),
+        energias_eh.get('Kinetic Energy', 0),
+        energias_eh.get('Total Energy', 0)
+    ]
+    
+    bars_virial = ax2.bar(virial_categorias, virial_valores_eh, 
+                         color=['#FF6B6B', '#4ECDC4', '#2E86AB'], alpha=0.8, 
+                         edgecolor='black', linewidth=0.5)
+    
+    ax2.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+    ax2.set_ylabel('Energía (Eh)', fontweight='bold')
+    ax2.set_title('Teorema del Virial', fontweight='bold')
+    ax2.grid(axis='y', alpha=0.3, linestyle='--')
+    
+    # Añadir valores en las barras del virial
+    for bar, valor in zip(bars_virial, virial_valores_eh):
+        if valor != 0:  # Solo mostrar si el valor existe
+            height = bar.get_height()
+            va_position = 'bottom' if height > 0 else 'top'
+            y_offset = abs(height) * 0.05 if height > 0 else -abs(height) * 0.05
+            ax2.text(bar.get_x() + bar.get_width()/2., height + y_offset,
+                     f'{valor:.2f} Eh', ha='center', va=va_position, fontsize=9, fontweight='bold')
+    
+    # Añadir ratio virial si está disponible
+    if 'Virial Ratio' in energias_eh:
+        virial_ratio = energias_eh['Virial Ratio']
+        ax2.text(0.95, 0.95, f'Ratio Virial: {virial_ratio:.4f}\n(ideal ≈ 2.0)',
+                 transform=ax2.transAxes, ha='right', va='top',
+                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8), fontsize=10)
+    elif 'Potential Energy' in energias_eh and 'Kinetic Energy' in energias_eh and energias_eh['Kinetic Energy'] != 0:
+        virial_ratio = abs(energias_eh['Potential Energy'] / energias_eh['Kinetic Energy'])
+        ax2.text(0.95, 0.95, f'Ratio Virial: {virial_ratio:.4f}\n(ideal ≈ 2.0)',
+                 transform=ax2.transAxes, ha='right', va='top',
+                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8), fontsize=10)
+    
+    plt.tight_layout()
+    
+    # Mostrar información adicional mejorada
+    st.subheader("📊 Información energética detallada")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if 'Total Energy' in energias_eh:
+            st.metric("Energía Total", f"{energias_eh['Total Energy']:.6f} Eh")
+    with col2:
+        if 'One Electron Energy' in energias_eh:
+            st.metric("Un Electrón", f"{energias_eh['One Electron Energy']:.6f} Eh")
+    with col3:
+        if 'Two Electron Energy' in energias_eh:
+            st.metric("Dos Electrones", f"{energias_eh['Two Electron Energy']:.6f} Eh")
+    with col4:
+        if 'Virial Ratio' in energias_eh:
+            st.metric("Ratio Virial", f"{energias_eh['Virial Ratio']:.6f}")
+    
+    # Información adicional sobre las energías electrónicas
+    if all(key in energias_eh for key in ['One Electron Energy', 'Two Electron Energy', 'Electronic Energy']):
+        st.subheader("⚡ Análisis de Energías Electrónicas")
+        
+        one_e = energias_eh['One Electron Energy']
+        two_e = energias_eh['Two Electron Energy']
+        total_e = energias_eh['Electronic Energy']
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.info(f"""
+            **Energía de Un Electrón**
+            - Valor: {one_e:.6f} Eh
+            - Incluye: energía cinética de electrones y atracción núcleo-electrón
+            - Siempre negativa (enlace estabilizante)
+            """)
+        
+        with col2:
+            st.success(f"""
+            **Energía de Dos Electrones**
+            - Valor: {two_e:.6f} Eh
+            - Incluye: repulsión electrón-electrón
+            - Siempre positiva (desestabilizante)
+            """)
+        
+        with col3:
+            balance = "Estabilizante" if total_e < 0 else "Desestabilizante"
+            st.warning(f"""
+            **Balance Electrónico**
+            - Total: {total_e:.6f} Eh
+            - Efecto neto: {balance}
+            - Suma: {one_e:.3f} + {two_e:.3f} = {total_e:.3f}
+            """)
+    
+    # Mostrar resumen numérico completo
+    if st.checkbox("Ver resumen energético completo"):
+        st.subheader("📋 Resumen Energético Completo")
+        
+        # Crear DataFrame para mostrar los datos
+        data_rows = []
+        for key, value in energias_eh.items():
+            if not key.endswith('(eV)'):  # Solo mostrar valores en Hartree
+                tipo = "Nuclear" if "Nuclear" in key else "Electrónica" if "Electronic" in key or "Electron" in key else "Mixta"
+                ev_key = key + " (eV)"
+                ev_value = energias_eh.get(ev_key, "N/A")
+                data_rows.append({
+                    'Componente': key,
+                    'Energía (Eh)': f"{value:.6f}",
+                    'Energía (eV)': f"{ev_value:.6f}" if ev_value != "N/A" else "N/A",
+                    'Tipo': tipo
+                })
+        
+        if data_rows:
+            df_energias = pd.DataFrame(data_rows)
+            st.dataframe(df_energias, use_container_width=True)
+    
+    return fig
+
+#----- Gráfico de Energías Orbitales (DATOS REALES DE ORCA) -----
+def dibujar_energias_orbitales(molecule_name):
+    """Genera gráficos de análisis de energías orbitales usando datos reales de ORCA"""
+    
+    # Verificar archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    if not outputs['opt'].exists():
+        st.error(f"⚠️ No se encontró el archivo de optimización para {molecule_name}")
+        return None
+    
+    # Leer datos de energías orbitales
+    df = parse_orca_orbital_energies(outputs['opt'])
+    
+    if df.empty:
+        st.error(f"⚠️ No se pudieron extraer las energías orbitales de {molecule_name}")
+        return None
+    
+    # Clasificar orbitales
+    df['Tipo'] = df['OCC'].apply(lambda x: 'Ocupado' if x > 0 else 'Virtual')
+    df['HOMO_LUMO'] = 'Normal'
+    
+    # Identificar HOMO y LUMO
+    ocupados = df[df['OCC'] > 0]
+    virtuales = df[df['OCC'] == 0]
+    
+    homo_energy = lumo_energy = gap_energy = None
+    
+    if not ocupados.empty and not virtuales.empty:
+        homo_idx = ocupados['E(Eh)'].idxmax()  # Mayor energía entre ocupados
+        lumo_idx = virtuales['E(Eh)'].idxmin()  # Menor energía entre virtuales
+        
+        df.loc[homo_idx, 'HOMO_LUMO'] = 'HOMO'
+        df.loc[lumo_idx, 'HOMO_LUMO'] = 'LUMO'
+        
+        homo_energy = df.loc[homo_idx, 'E(Eh)']
+        lumo_energy = df.loc[lumo_idx, 'E(Eh)']
+        gap_energy = lumo_energy - homo_energy
+    
+    # Crear figura con 4 subplots (2x2)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(f'Análisis de Energías Orbitales - {molecule_name} (Hartree)', fontsize=16, fontweight='bold')
+    
+    # 1. Diagrama de niveles de energía
+    colors = {'Ocupado': 'blue', 'Virtual': 'red', 'HOMO': 'green', 'LUMO': 'orange'}
+    
+    for _, row in df.iterrows():
+        color = colors[row['HOMO_LUMO']] if row['HOMO_LUMO'] != 'Normal' else colors[row['Tipo']]
+        alpha = 1.0 if row['HOMO_LUMO'] != 'Normal' else 0.7
+        
+        ax1.hlines(y=row['NO'], xmin=df['E(Eh)'].min()-0.1, xmax=row['E(Eh)'], 
+                  color=color, alpha=alpha, linewidth=3)
+        ax1.plot(row['E(Eh)'], row['NO'], 'o', color=color, markersize=8, alpha=alpha)
+        
+        # Añadir etiqueta con valor energético para HOMO y LUMO
+        if row['HOMO_LUMO'] != 'Normal':
+            ax1.text(row['E(Eh)'] + 0.02, row['NO'], f'{row["E(Eh)"]:.3f}', 
+                    va='center', fontweight='bold', fontsize=9)
+    
+    ax1.set_xlabel('Energía (Eh)', fontweight='bold')
+    ax1.set_ylabel('Número Orbital', fontweight='bold')
+    ax1.set_title('Diagrama de Niveles de Energía', fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim(df['E(Eh)'].min()-0.1, df['E(Eh)'].max()+0.1)
+    ax1.set_ylim(-0.5, len(df)+0.5)
+    
+    # Añadir línea en energía cero
+    ax1.axvline(x=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+    
+    # 2. Histograma comparativo
+    bins = np.linspace(df['E(Eh)'].min() - 0.05, df['E(Eh)'].max() + 0.05, 15)
+    ax2.hist(df[df['Tipo'] == 'Ocupado']['E(Eh)'], bins=bins, 
+             alpha=0.7, label='Ocupados', color='blue', edgecolor='black')
+    ax2.hist(df[df['Tipo'] == 'Virtual']['E(Eh)'], bins=bins, 
+             alpha=0.7, label='Virtuales', color='red', edgecolor='black')
+    ax2.axvline(x=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+    ax2.set_xlabel('Energía (Eh)', fontweight='bold')
+    ax2.set_ylabel('Frecuencia', fontweight='bold')
+    ax2.set_title('Distribución de Energías Orbitales', fontweight='bold')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    # 3. Diagrama de dispersión Ocupación vs Energía
+    scatter = ax3.scatter(df['E(Eh)'], df['OCC'], 
+                         c=df['E(Eh)'], cmap='viridis', 
+                         s=80, alpha=0.8, edgecolor='black', linewidth=0.5)
+    ax3.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='E=0 Eh')
+    ax3.set_xlabel('Energía (Eh)', fontweight='bold')
+    ax3.set_ylabel('Ocupación', fontweight='bold')
+    ax3.set_title('Ocupación vs Energía', fontweight='bold')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+    plt.colorbar(scatter, ax=ax3, label='Energía (Eh)')
+    
+    # 4. Gráfico de barras de energías orbitales
+    colors_bars = []
+    for _, row in df.iterrows():
+        if row['HOMO_LUMO'] == 'HOMO':
+            colors_bars.append('green')
+        elif row['HOMO_LUMO'] == 'LUMO':
+            colors_bars.append('orange')
+        elif row['Tipo'] == 'Ocupado':
+            colors_bars.append('blue')
+        else:
+            colors_bars.append('red')
+    
+    bars = ax4.bar(range(len(df)), df['E(Eh)'], color=colors_bars, alpha=0.8, edgecolor='black')
+    ax4.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+    ax4.set_xlabel('Número Orbital', fontweight='bold')
+    ax4.set_ylabel('Energía (Eh)', fontweight='bold')
+    ax4.set_title('Energías Orbitales Individuales', fontweight='bold')
+    ax4.grid(True, alpha=0.3, axis='y')
+    
+    # Añadir etiquetas a las barras solo para valores significativos
+    for i, (bar, valor) in enumerate(zip(bars, df['E(Eh)'])):
+        if abs(valor) > 0.1:  # Solo etiquetar valores significativos
+            height = bar.get_height()
+            va = 'bottom' if height > 0 else 'top'
+            y_offset = 0.02 if height > 0 else -0.02
+            ax4.text(bar.get_x() + bar.get_width()/2., height + y_offset,
+                    f'{valor:.3f}', ha='center', va=va, fontsize=8, fontweight='bold')
+    
+    plt.tight_layout()
+    
+    # Mostrar información adicional mejorada
+    st.subheader("🔬 Información de Energías Orbitales")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Orbitales", len(df))
+    with col2:
+        st.metric("Ocupados", len(ocupados))
+    with col3:
+        st.metric("Virtuales", len(virtuales))
+    with col4:
+        if gap_energy is not None:
+            st.metric("Gap HOMO-LUMO", f"{gap_energy:.6f} Eh")
+    
+    # Información sobre HOMO y LUMO
+    if homo_energy is not None and lumo_energy is not None:
+        st.subheader("⚡ Análisis HOMO-LUMO")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.info(f"""
+            **HOMO (Orbital Molecular Ocupado más Alto)**
+            - Energía: {homo_energy:.6f} Eh
+            - Energía: {homo_energy*27.2114:.3f} eV
+            - Capacidad donadora de electrones
+            """)
+        
+        with col2:
+            st.success(f"""
+            **LUMO (Orbital Molecular No Ocupado más Bajo)**
+            - Energía: {lumo_energy:.6f} Eh
+            - Energía: {lumo_energy*27.2114:.3f} eV
+            - Capacidad aceptora de electrones
+            """)
+        
+        with col3:
+            st.warning(f"""
+            **Gap HOMO-LUMO**
+            - Diferencia: {gap_energy:.6f} Eh
+            - Diferencia: {gap_energy*27.2114:.3f} eV
+            - Indicador de reactividad química
+            """)
+    
+    # Estadísticas detalladas
+    if st.checkbox("Ver estadísticas orbitales detalladas"):
+        st.subheader("📊 Estadísticas de Energías Orbitales")
+        
+        # Crear tabla de estadísticas
+        stats_data = []
+        
+        if not ocupados.empty:
+            stats_data.extend([
+                {"Categoría": "Ocupados - Energía Mínima", "Valor": f"{ocupados['E(Eh)'].min():.6f} Eh", "eV": f"{ocupados['E(Eh)'].min()*27.2114:.3f} eV"},
+                {"Categoría": "Ocupados - Energía Máxima", "Valor": f"{ocupados['E(Eh)'].max():.6f} Eh", "eV": f"{ocupados['E(Eh)'].max()*27.2114:.3f} eV"},
+                {"Categoría": "Ocupados - Promedio", "Valor": f"{ocupados['E(Eh)'].mean():.6f} Eh", "eV": f"{ocupados['E(Eh)'].mean()*27.2114:.3f} eV"},
+            ])
+        
+        if not virtuales.empty:
+            stats_data.extend([
+                {"Categoría": "Virtuales - Energía Mínima", "Valor": f"{virtuales['E(Eh)'].min():.6f} Eh", "eV": f"{virtuales['E(Eh)'].min()*27.2114:.3f} eV"},
+                {"Categoría": "Virtuales - Energía Máxima", "Valor": f"{virtuales['E(Eh)'].max():.6f} Eh", "eV": f"{virtuales['E(Eh)'].max()*27.2114:.3f} eV"},
+                {"Categoría": "Virtuales - Promedio", "Valor": f"{virtuales['E(Eh)'].mean():.6f} Eh", "eV": f"{virtuales['E(Eh)'].mean()*27.2114:.3f} eV"},
+            ])
+        
+        if stats_data:
+            df_stats = pd.DataFrame(stats_data)
+            st.dataframe(df_stats, use_container_width=True)
+    
+    # Mostrar tabla de orbitales críticos
+    if st.checkbox("Ver tabla de orbitales críticos"):
+        st.subheader("🎯 Orbitales Críticos (HOMO y LUMO)")
+        critical_orbitals = df[df['HOMO_LUMO'].isin(['HOMO', 'LUMO'])]
+        if not critical_orbitals.empty:
+            critical_display = critical_orbitals[['NO', 'OCC', 'E(Eh)', 'HOMO_LUMO']].copy()
+            critical_display['E(eV)'] = critical_display['E(Eh)'] * 27.2114
+            st.dataframe(critical_display, use_container_width=True)
     
     return fig
 
@@ -2018,7 +2573,9 @@ def main():
             "📊 Molécula 2D", 
             "🔗 Conjunto de moléculas",
             "📦 Contenedor de moléculas",
-            "📈 Espectro IR", 
+            "📈 Espectro IR",
+            "⚡ Energías SCF",
+            "🔬 Energías Orbitales",
             "🔬 Trabajo de adhesión",
             "⚛️ Molécula teórica (RDF)",
             "🌈 Espectros Raman",
@@ -2123,6 +2680,30 @@ def main():
                 return
             
             fig = dibujar_espectro_ir(molecula_seleccionada)
+            if fig:
+                st.pyplot(fig)
+        
+        elif option == "⚡ Energías SCF":
+            st.header(f"⚡ Análisis de Energías SCF - {molecula_seleccionada}")
+            
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
+            
+            fig = dibujar_energias_scf(molecula_seleccionada)
+            if fig:
+                st.pyplot(fig)
+            
+        elif option == "🔬 Energías Orbitales":
+            st.header(f"🔬 Análisis de Energías Orbitales - {molecula_seleccionada}")
+            
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
+            
+            fig = dibujar_energias_orbitales(molecula_seleccionada)
             if fig:
                 st.pyplot(fig)
             
