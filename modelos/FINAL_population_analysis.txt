@@ -3,23 +3,23 @@ MULLIKEN POPULATION ANALYSIS
 
 Atomic Charges:
 ---------------
-0 O:  -0.707068
-1 H:   0.353534
-2 H:   0.353534
+0 O:  -0.541114
+1 H:   0.270557
+2 H:   0.270557
 
 Reduced Orbital Charges:
 -------------------------
 
 0 O s:
   s total:   0.000000
-  p total:   4.842341
-  d total:   0.017655
-  px:   1.272662
-  py:   1.595340
-  dxz:   0.000000
-  dyz:   0.002145
-  dx2y2:   0.000337
-  dxy:   0.012081
+  p total:   4.744898
+  d total:   0.016084
+  px:   1.237221
+  py:   1.552074
+  dxz:  -0.000000
+  dyz:   0.002384
+  dx2y2:   0.000503
+  dxy:   0.010316
 
 
 LOEWDIN POPULATION ANALYSIS
@@ -27,20 +27,20 @@ LOEWDIN POPULATION ANALYSIS
 
 Atomic Charges:
 ---------------
-0 O:  -0.460384
-1 H:   0.230192
-2 H:   0.230192
+0 O:  -0.228536
+1 H:   0.114268
+2 H:   0.114268
 
 Reduced Orbital Charges:
 -------------------------
 
 0 O s:
   s total:   0.000000
-  p total:   4.884991
-  d total:   0.027180
-  px:   1.316406
-  py:   1.631499
+  p total:   4.796512
+  d total:   0.030961
+  px:   1.290529
+  py:   1.614402
   dxz:   0.000000
-  dyz:   0.000988
-  dx2y2:   0.000074
-  dxy:   0.020950
+  dyz:   0.000737
+  dx2y2:   0.000166
+  dxy:   0.023768
