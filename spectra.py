@@ -1,4 +1,3 @@
-# spectra.py
 import math
 from matplotlib.patches import Circle
 import numpy as np

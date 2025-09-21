@@ -3,6 +3,7 @@ import streamlit as st
 from pathlib import Path
 import os
 
+from rdf_analysis import analyze_molecule_rdf
 # Importar funciones de spectra
 from spectra import (
     seleccionar_molecula,
@@ -63,6 +64,7 @@ def main():
             "⚡ Energías SCF",
             "🔬 Energías Orbitales",
             "🔬 Trabajo de adhesión",
+            "📊 Función de Distribución Radial", 
             "⚛️ Molécula teórica (RDF)",
             "🌈 Espectros Raman",
             "🔍 Comparación con NH₃",
@@ -233,6 +235,13 @@ def main():
                 comparar_rmn_s4_vs_nh3(ruta)
             else:
                 st.error(f"No se encontró el archivo: {ruta}")
+
+        elif option == "📊 Función de Distribución Radial":
+            st.header("📊 Análisis de Función de Distribución Radial")
+            if molecula_seleccionada:
+                analyze_molecule_rdf(molecula_seleccionada)
+            else:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")        
                 
     else:
         # Si no hay molécula seleccionada
