@@ -184,9 +184,8 @@ def main():
                 st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
                 return
             
-            fig = dibujar_energias_scf(molecula_seleccionada)
-            if fig:
-                st.pyplot(fig)
+            dibujar_energias_scf(molecula_seleccionada)
+            
             
         elif option == "🔬 Energías Orbitales":
             st.header(f"🔬 Análisis de Energías Orbitales - {molecula_seleccionada}")
@@ -196,9 +195,8 @@ def main():
                 st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
                 return
             
-            fig = dibujar_energias_orbitales(molecula_seleccionada)
-            if fig:
-                st.pyplot(fig)
+            dibujar_energias_orbitales(molecula_seleccionada)
+            
         
         elif option == "🧬 Análisis de Población (Mulliken/Löwdin)":
             st.header(f"🧬 Análisis de Población Atómica - {molecula_seleccionada}")
@@ -223,9 +221,8 @@ def main():
             - Estadísticas comparativas
             """)
             
-            fig = dibujar_analisis_poblacion(molecula_seleccionada)
-            if fig:
-                st.pyplot(fig)
+            dibujar_analisis_poblacion(molecula_seleccionada)
+            
             
         elif option == "🔬 Trabajo de adhesión":
             st.header("🔬 Trabajo de Adhesión Molecular")

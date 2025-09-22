@@ -81,27 +81,6 @@ def calculate_rdf(traj_file, element_pairs, range=(0.5, 5.0), nbins=100, box_siz
         st.error(f"Error calculando RDF: {e}")
         return None
 
-def plot_rdf(results, molecule_name):
-    """
-    Genera gráficos de las funciones de distribución radial.
-    """
-    if not results:
-        return None
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    colors = plt.cm.tab10(np.linspace(0, 1, len(results)))
-
-    for i, (pair, data) in enumerate(results.items()):
-        ax.plot(data['bins'], data['rdf'],
-                color=colors[i], linewidth=2, label=pair)
-
-    ax.set_xlabel('Distancia (Å)')
-    ax.set_ylabel('g(r)')
-    ax.set_title(f'Función de Distribución Radial - {molecule_name}')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    return fig
 
 def get_suggested_params(molecule_name, n_molecules):
     """
@@ -126,14 +105,86 @@ def get_suggested_params(molecule_name, n_molecules):
         "n_bins": 150
     }
 
+def plot_rdf(results, molecule_name):
+    """
+    Genera gráficos de las funciones de distribución radial con análisis analítico.
+    """
+    if not results:
+        return None
+
+    # --- ANÁLISIS ANALÍTICO ---
+    st.subheader("🧮 Análisis Analítico de la Función de Distribución Radial")
+    
+    st.markdown("### 📚 Fundamentos Teóricos de la RDF")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.latex(r"""
+        g_{AB}(r) = \frac{\langle \rho_B(r) \rangle}{\langle \rho_B \rangle_{local}}
+        """)
+        st.markdown("""
+        **Definición de RDF:**
+        - $g_{AB}(r)$: Probabilidad relativa de encontrar átomo B a distancia r de A
+        - $\langle \rho_B(r) \rangle$: Densidad promedio de B a distancia r
+        - $\langle \rho_B \rangle_{local}$: Densidad promedio de B en el sistema
+        """)
+        
+        st.latex(r"""
+        g(r) = \frac{1}{\rho} \cdot \frac{dN}{4\pi r^2 dr}
+        """)
+        st.markdown("""
+        **Forma integral:**
+        - $\rho$: Densidad numérica promedio
+        - $dN$: Número de partículas en el shell esférico
+        - $4\pi r^2 dr$: Volumen del shell esférico
+        """)
+    
+    with col2:
+        st.latex(r"""
+        \lim_{r \to \infty} g(r) = 1
+        """)
+        st.markdown("""
+        **Comportamiento asintótico:**
+        - A grandes distancias: Comportamiento de gas ideal
+        - $g(r) = 1$: Densidad igual al promedio del sistema
+        - $g(r) > 1$: Exceso de densidad (correlación)
+        - $g(r) < 1$: Déficit de densidad (exclusión)
+        """)
+        
+        st.latex(r"""
+        n_{coord} = 4\pi\rho \int_{r_{min}}^{r_{max}} r^2 g(r) dr
+        """)
+        st.markdown("""
+        **Número de coordinación:**
+        - Integral bajo el primer pico de la RDF
+        - Representa el número promedio de vecinos
+        """)
+
+    # --- GRÁFICO PRINCIPAL ---
+    st.subheader("📈 Visualización de la RDF")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(results)))
+
+    for i, (pair, data) in enumerate(results.items()):
+        ax.plot(data['bins'], data['rdf'],
+                color=colors[i], linewidth=2, label=pair)
+
+    ax.set_xlabel('Distancia (Å)')
+    ax.set_ylabel('g(r)')
+    ax.set_title(f'Función de Distribución Radial - {molecule_name}')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    return fig
 
 def analyze_molecule_rdf(molecule_name):
-    
     """
-    Función principal para analizar la RDF de una molécula.
+    Función principal para analizar la RDF de una molécula con análisis analítico.
     """
     st.header(f"📊 Análisis de Función de Distribución Radial - {molecule_name}")
 
+    # --- SECCIÓN DE PARÁMETROS (EXISTENTE) ---
     n_molecules = st.slider("Número de moléculas", 1, 200, 50)
 
     # Obtener sugerencias
@@ -156,7 +207,6 @@ def analyze_molecule_rdf(molecule_name):
         r_min = st.slider("Distancia mínima (Å)", 0.1, 2.0, suggested["r_min"])
         r_max = st.slider("Distancia máxima (Å)", 3.0, 10.0, suggested["r_max"])
         n_bins = st.slider("Número de bins", 50, 300, suggested["n_bins"])
-
 
     # Obtener elementos de la molécula
     from molecular_config_manager import MolecularConfigManager
@@ -204,16 +254,83 @@ def analyze_molecule_rdf(molecule_name):
                 )
 
                 if results:
-                    # Mostrar resultados
-                    st.subheader("Resultados")
-
-                    # Gráfico
+                    # --- ANÁLISIS CUANTITATIVO ---
+                    st.subheader("🔍 Análisis Cuantitativo de la RDF")
+                    
+                    # Calcular estadísticas para cada par
+                    analysis_data = []
+                    
+                    for pair, data in results.items():
+                        bins = data['bins']
+                        rdf_values = data['rdf']
+                        counts = data['counts']
+                        
+                        # Encontrar picos significativos
+                        peaks = []
+                        for i in range(1, len(rdf_values)-1):
+                            if rdf_values[i] > rdf_values[i-1] and rdf_values[i] > rdf_values[i+1] and rdf_values[i] > 1.2:
+                                peaks.append({
+                                    'position': bins[i],
+                                    'height': rdf_values[i],
+                                    'width': bins[i+1] - bins[i-1]
+                                })
+                        
+                        # Calcular número de coordinación aproximado
+                        if peaks:
+                            first_peak = peaks[0]
+                            # Integral bajo el primer pico (aproximación trapezoidal)
+                            peak_start = max(r_min, first_peak['position'] - 0.5)
+                            peak_end = min(r_max, first_peak['position'] + 0.5)
+                            
+                            mask = (bins >= peak_start) & (bins <= peak_end)
+                            if np.sum(mask) > 1:
+                                coordination_number = np.trapz(rdf_values[mask] - 1, bins[mask]) * 4 * np.pi * (n_molecules / box_size**3)
+                            else:
+                                coordination_number = 0
+                        else:
+                            coordination_number = 0
+                        
+                        analysis_data.append({
+                            'Par': pair,
+                            'Máximo g(r)': f"{np.max(rdf_values):.3f}",
+                            'Posición del primer pico (Å)': f"{bins[np.argmax(rdf_values)]:.2f}" if len(rdf_values) > 0 else "N/A",
+                            'Número de picos > 1.2': len(peaks),
+                            'Número de coordinación ≈': f"{coordination_number:.2f}",
+                            'g(r) a r_max': f"{rdf_values[-1] if len(rdf_values) > 0 else 0:.3f}"
+                        })
+                    
+                    # Mostrar tabla de análisis
+                    df_analysis = pd.DataFrame(analysis_data)
+                    st.dataframe(df_analysis, use_container_width=True)
+                    
+                    # --- INTERPRETACIÓN FÍSICA ---
+                    st.subheader("⚛️ Interpretación Física")
+                    
+                    for pair, data in results.items():
+                        max_g = np.max(data['rdf'])
+                        peak_pos = data['bins'][np.argmax(data['rdf'])] if len(data['rdf']) > 0 else 0
+                        
+                        if max_g > 3.0:
+                            st.success(f"**{pair}:** Fuerte correlación estructural (g(r)_max = {max_g:.2f})")
+                            st.write(f"- Distancia característica: {peak_pos:.2f} Å")
+                            st.write(f"- Indica ordenamiento molecular significativo")
+                        elif max_g > 1.5:
+                            st.info(f"**{pair}:** Correlación moderada (g(r)_max = {max_g:.2f})")
+                            st.write(f"- Distancia característica: {peak_pos:.2f} Å") 
+                            st.write(f"- Estructura líquida típica")
+                        else:
+                            st.warning(f"**{pair}:** Correlación débil (g(r)_max = {max_g:.2f})")
+                            st.write(f"- Comportamiento similar a gas ideal")
+                            st.write(f"- Poca estructuración molecular")
+                    
+                    # --- GRÁFICO ---
+                    
                     fig = plot_rdf(results, molecule_name)
                     if fig:
                         st.pyplot(fig)
 
-                    # Tabla de valores
-                    st.subheader("Valores de RDF")
+                    # --- TABLA DE VALORES (EXISTENTE) ---
+                    st.subheader("📋 Valores de RDF")
 
                     for pair, data in results.items():
                         with st.expander(f"Valores para {pair}"):
@@ -224,20 +341,43 @@ def analyze_molecule_rdf(molecule_name):
                             })
                             st.dataframe(df, use_container_width=True)
 
-                    # Información estadística
-                    st.subheader("Estadísticas")
+                    # --- ESTADÍSTICAS (EXISTENTE) ---
+                    st.subheader("📊 Estadísticas Detalladas")
 
                     cols = st.columns(len(results))
 
                     for i, (pair, data) in enumerate(results.items()):
                         with cols[i]:
-                            st.metric(f"{pair} - Máximo", f"{np.max(data['rdf']):.3f}")
-                            st.metric(f"{pair} - Distancia pico",
-                                    f"{data['bins'][np.argmax(data['rdf'])]:.2f} Å")
+                            st.metric(f"{pair} - Máximo g(r)", f"{np.max(data['rdf']):.3f}")
+                            st.metric(f"{pair} - Distancia pico", f"{data['bins'][np.argmax(data['rdf'])]:.2f} Å")
+                            
+                            # Calcular FWHM aproximado
+                            half_max = np.max(data['rdf']) / 2
+                            above_half_max = data['rdf'] > half_max
+                            if np.any(above_half_max):
+                                fwhm = data['bins'][above_half_max][-1] - data['bins'][above_half_max][0]
+                                st.metric(f"{pair} - FWHM aproximado", f"{fwhm:.2f} Å")
 
-                    # Botón para descargar datos
+                    # --- CONCLUSIÓN ANALÍTICA ---
+                    st.subheader("🎯 Conclusión del Análisis RDF")
+                    
+                    conclusiones = []
+                    for pair, data in results.items():
+                        max_g = np.max(data['rdf'])
+                        if max_g > 2.5:
+                            conclusiones.append(f"✅ **{pair}:** Estructura bien definida con fuerte ordenamiento")
+                        elif max_g > 1.2:
+                            conclusiones.append(f"⚠️ **{pair}:** Estructura líquida con correlaciones moderadas")
+                        else:
+                            conclusiones.append(f"🔍 **{pair}:** Comportamiento tipo gas con poca estructura")
+                    
+                    if conclusiones:
+                        st.info("### Resumen Estructural:")
+                        for conclusion in conclusiones:
+                            st.write(conclusion)
+
+                    # --- DESCARGA DE DATOS (EXISTENTE) ---
                     csv_data = "Pair,Distance (Å),g(r),Counts\n"
-
                     for pair, data in results.items():
                         for dist, g_val, count in zip(data['bins'], data['rdf'], data['counts']):
                             csv_data += f"{pair},{dist:.4f},{g_val:.4f},{count}\n"
