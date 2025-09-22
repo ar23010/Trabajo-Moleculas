@@ -374,3 +374,216 @@ def check_orca_outputs_exist(molecule_name: str) -> Dict[str, bool]:
         existing[calc_type] = path.exists()
         
     return existing
+
+def parse_orca_population_analysis(out_file_path: Union[str, Path]) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    Extrae el análisis de población de Mulliken y Löwdin de un archivo .out de ORCA.
+    Funciona para cualquier molécula.
+    
+    Retorna:
+    {
+        'mulliken': {
+            'atomic_charges': {'atom_0': charge, 'atom_1': charge, ...},
+            'orbital_charges': {'atom_0': {'orbital_type': charge, ...}, ...}
+        },
+        'loewdin': {
+            'atomic_charges': {'atom_0': charge, 'atom_1': charge, ...},
+            'orbital_charges': {'atom_0': {'orbital_type': charge, ...}, ...}
+        }
+    }
+    """
+    try:
+        # Primero intentar leer desde archivo FINAL_population_analysis.txt
+        final_file = Path("modelos/FINAL_population_analysis.txt")
+        if final_file.exists():
+            return parse_final_population_file(final_file)
+        
+        # Si no existe el archivo final, intentar extraer del .out de ORCA
+        with open(out_file_path, 'r') as f:
+            content = f.read()
+        
+        result = {
+            'mulliken': {'atomic_charges': {}, 'orbital_charges': {}},
+            'loewdin': {'atomic_charges': {}, 'orbital_charges': {}}
+        }
+        
+        # Parsear Mulliken
+        result['mulliken'] = _parse_population_section(content, "MULLIKEN")
+        
+        # Parsear Löwdin
+        result['loewdin'] = _parse_population_section(content, "LOEWDIN")
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error leyendo análisis de población de ORCA: {e}")
+        return {
+            'mulliken': {'atomic_charges': {}, 'orbital_charges': {}},
+            'loewdin': {'atomic_charges': {}, 'orbital_charges': {}}
+        }
+
+def parse_final_population_file(file_path: Path) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    Parsea el archivo FINAL_population_analysis.txt que contiene datos de ambos métodos.
+    """
+    with open(file_path, 'r') as f:
+        content = f.read()
+    
+    result = {
+        'mulliken': {'atomic_charges': {}, 'orbital_charges': {}},
+        'loewdin': {'atomic_charges': {}, 'orbital_charges': {}}
+    }
+    
+    # Dividir contenido en secciones Mulliken y Löwdin
+    sections = content.split("LOEWDIN POPULATION ANALYSIS")
+    
+    if len(sections) >= 2:
+        mulliken_content = sections[0]
+        loewdin_content = "LOEWDIN POPULATION ANALYSIS" + sections[1]
+        
+        result['mulliken'] = _parse_population_text(mulliken_content, "MULLIKEN")
+        result['loewdin'] = _parse_population_text(loewdin_content, "LOEWDIN")
+    
+    return result
+
+def _parse_population_section(content: str, method: str) -> Dict[str, Dict[str, float]]:
+    """
+    Parsea una sección específica (MULLIKEN o LOEWDIN) del archivo .out de ORCA.
+    """
+    result = {'atomic_charges': {}, 'orbital_charges': {}}
+    
+    # Buscar sección de cargas atómicas
+    atomic_pattern = rf"{method} ATOMIC CHARGES\s+-+\s+(.*?)(?=Sum of atomic charges|\n\n|\Z)"
+    atomic_match = re.search(atomic_pattern, content, re.DOTALL)
+    
+    if atomic_match:
+        atomic_lines = atomic_match.group(1).strip().split('\n')
+        for line in atomic_lines:
+            line = line.strip()
+            if ':' in line and line.count(':') == 1:
+                parts = line.split(':')
+                if len(parts) == 2:
+                    atom_label = parts[0].strip()
+                    try:
+                        charge = float(parts[1].strip())
+                        result['atomic_charges'][atom_label] = charge
+                    except ValueError:
+                        continue
+    
+    # Buscar sección de cargas orbitales reducidas
+    orbital_pattern = rf"{method} REDUCED ORBITAL CHARGES\s+-+\s+(.*?)(?=\n\n|\Z)"
+    orbital_match = re.search(orbital_pattern, content, re.DOTALL)
+    
+    if orbital_match:
+        orbital_lines = orbital_match.group(1).strip().split('\n')
+        current_atom = None
+        
+        for line in orbital_lines:
+            line = line.strip()
+            
+            # Detectar nueva sección de átomo
+            if line.endswith('s:') and ' ' in line:
+                current_atom = line.replace(' s:', '').strip()
+                if current_atom not in result['orbital_charges']:
+                    result['orbital_charges'][current_atom] = {}
+                continue
+            
+            # Parsear orbitales
+            if current_atom and ':' in line:
+                parts = line.split(':')
+                if len(parts) == 2:
+                    orbital_type = parts[0].strip().replace(' ', '_')
+                    try:
+                        charge = float(parts[1].strip())
+                        result['orbital_charges'][current_atom][orbital_type] = charge
+                    except ValueError:
+                        continue
+    
+    return result
+
+def _parse_population_text(content: str, method: str) -> Dict[str, Dict[str, float]]:
+    """
+    Parsea el texto de población desde el archivo FINAL_population_analysis.txt.
+    """
+    result = {'atomic_charges': {}, 'orbital_charges': {}}
+    lines = content.strip().split('\n')
+    
+    current_section = None
+    current_atom = None
+    
+    for line in lines:
+        line = line.strip()
+        
+        if 'Atomic Charges:' in line:
+            current_section = 'atomic_charges'
+            continue
+        elif 'Reduced Orbital Charges:' in line:
+            current_section = 'orbitals'
+            continue
+        elif line.endswith('s:') and current_section == 'orbitals':
+            current_atom = line.replace(' s:', '').strip()
+            if current_atom not in result['orbital_charges']:
+                result['orbital_charges'][current_atom] = {}
+            continue
+        
+        # Parsear cargas atómicas
+        if current_section == 'atomic_charges' and ':' in line and not line.startswith('-'):
+            parts = line.split(':')
+            if len(parts) == 2:
+                atom_label = parts[0].strip()
+                try:
+                    charge = float(parts[1].strip())
+                    result['atomic_charges'][atom_label] = charge
+                except ValueError:
+                    continue
+        
+        # Parsear orbitales
+        elif current_section == 'orbitals' and current_atom and ':' in line:
+            parts = line.split(':')
+            if len(parts) == 2:
+                orbital_type = parts[0].strip().replace(' ', '_')
+                try:
+                    charge = float(parts[1].strip())
+                    result['orbital_charges'][current_atom][orbital_type] = charge
+                except ValueError:
+                    continue
+    
+    return result
+
+def format_population_data_for_molecule(population_data: Dict, molecule_elements: List[str]) -> Dict:
+    """
+    Formatea los datos de población para que sean más fáciles de usar en visualizaciones.
+    Convierte etiquetas de átomos (como '0 O', '1 H') a nombres más legibles.
+    """
+    formatted = {
+        'mulliken': {'atomic_charges': {}, 'orbital_charges': {}},
+        'loewdin': {'atomic_charges': {}, 'orbital_charges': {}}
+    }
+    
+    for method in ['mulliken', 'loewdin']:
+        # Mapear cargas atómicas a nombres legibles
+        element_counts = {}
+        for atom_label, charge in population_data[method]['atomic_charges'].items():
+            # Extraer elemento del label (ej: '0 O' -> 'O')
+            element = None
+            for part in atom_label.split():
+                if part.isalpha():
+                    element = part
+                    break
+            
+            if element:
+                if element not in element_counts:
+                    element_counts[element] = 0
+                
+                if element_counts[element] == 0:
+                    readable_name = element
+                else:
+                    readable_name = f"{element}{element_counts[element] + 1}"
+                
+                element_counts[element] += 1
+                formatted[method]['atomic_charges'][readable_name] = charge
+        
+        # Mapear cargas orbitales
+        formatted[method]['orbital_charges'] = population_data[method]['orbital_charges']
+    
+    return formatted

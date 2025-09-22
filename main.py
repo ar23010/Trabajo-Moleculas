@@ -17,6 +17,7 @@ from spectra import (
     dibujar_espectro_ir,
     dibujar_energias_scf,
     dibujar_energias_orbitales,
+    dibujar_analisis_poblacion,
     graficar_trabajo_adhesion,
     mostrar_rdf,
     mostrar_ir_raman,
@@ -63,6 +64,7 @@ def main():
             "📈 Espectro IR",
             "⚡ Energías SCF",
             "🔬 Energías Orbitales",
+            "🧬 Análisis de Población (Mulliken/Löwdin)",
             "🔬 Trabajo de adhesión",
             "📊 Función de Distribución Radial", 
             "⚛️ Molécula teórica (RDF)",
@@ -192,6 +194,33 @@ def main():
                 return
             
             fig = dibujar_energias_orbitales(molecula_seleccionada)
+            if fig:
+                st.pyplot(fig)
+        
+        elif option == "🧬 Análisis de Población (Mulliken/Löwdin)":
+            st.header(f"🧬 Análisis de Población Atómica - {molecula_seleccionada}")
+            
+            # Verificar que la molécula esté seleccionada
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
+            
+            # Información sobre el análisis
+            st.info("""
+            📋 **Análisis de Población de Mulliken y Löwdin**
+            
+            Este análisis compara dos métodos diferentes para calcular las cargas atómicas:
+            - **Mulliken**: Método tradicional que divide la densidad electrónica equitativamente entre átomos
+            - **Löwdin**: Método más estable que usa orbitales ortogonalizados
+            
+            🔍 **¿Qué puedes analizar?**
+            - Cargas atómicas de cada método
+            - Diferencias entre ambos métodos
+            - Distribución de población orbital
+            - Estadísticas comparativas
+            """)
+            
+            fig = dibujar_analisis_poblacion(molecula_seleccionada)
             if fig:
                 st.pyplot(fig)
             

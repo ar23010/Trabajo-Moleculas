@@ -22,6 +22,19 @@ from orca_parsers import (
     check_orca_outputs_exist
 )
 
+# Importar funciones de parseo desde orca_parsers
+from orca_parsers import (
+    parse_orca_coordinates,
+    parse_orca_frequencies,
+    parse_orca_scf_energies,
+    parse_orca_orbital_energies,
+    parse_orca_xyz_file,
+    get_molecule_outputs,
+    check_orca_outputs_exist,
+    parse_orca_population_analysis,
+    format_population_data_for_molecule
+)
+
 # Importar nuestras clases personalizadas
 from generate_inp import OrcaInputGenerator
 from generar_out import OrcaOutputGenerator
@@ -2204,3 +2217,278 @@ def mostrar_informacion_molecula(nombre_molecula: str):
         
     except Exception as e:
         st.error(f"❌ Error cargando información de la molécula: {e}")
+
+#----- Análisis de Población de Mulliken y Löwdin (DATOS REALES DE ORCA) -----
+def dibujar_analisis_poblacion(molecule_name):
+    """Genera gráficos de análisis de población de Mulliken y Löwdin usando datos reales de ORCA"""
+    
+    # Verificar archivos de ORCA
+    outputs = get_molecule_outputs(molecule_name)
+    
+    # Intentar obtener datos de cualquier archivo disponible (ir-raman generalmente contiene población)
+    population_data = None
+    source_file = None
+    
+    for calc_type, file_path in outputs.items():
+        if file_path.exists():
+            try:
+                population_data = parse_orca_population_analysis(file_path)
+                if population_data['mulliken']['atomic_charges'] or population_data['loewdin']['atomic_charges']:
+                    source_file = file_path
+                    break
+            except:
+                continue
+    
+    if not population_data or (not population_data['mulliken']['atomic_charges'] and not population_data['loewdin']['atomic_charges']):
+        st.error(f"⚠️ No se pudieron extraer los datos de análisis de población para {molecule_name}")
+        st.info("💡 Asegúrate de que los cálculos ORCA hayan sido ejecutados correctamente")
+        return None
+    
+    # Obtener información de elementos para formatear datos
+    try:
+        config_manager = MolecularConfigManager()
+        elements, coordinates, _ = config_manager.read_xyz_file(molecule_name)
+        formatted_data = format_population_data_for_molecule(population_data, elements)
+    except:
+        # Si no se puede obtener información de elementos, usar datos sin formatear
+        formatted_data = population_data
+    
+    # Crear figura con múltiples subplots
+    fig = plt.figure(figsize=(16, 12))
+    fig.suptitle(f'Análisis de Población Atómica - {molecule_name}', fontsize=16, fontweight='bold')
+    
+    # Layout de subplots
+    gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.5], hspace=0.3, wspace=0.3)
+    
+    ax1 = fig.add_subplot(gs[0, 0])  # Cargas atómicas comparativas
+    ax2 = fig.add_subplot(gs[0, 1])  # Cargas absolutas
+    ax3 = fig.add_subplot(gs[1, 0])  # Diferencias entre métodos
+    ax4 = fig.add_subplot(gs[1, 1])  # Distribución de cargas
+    ax5 = fig.add_subplot(gs[2, :])  # Análisis orbital detallado
+    
+    # Datos para gráficos
+    mulliken_charges = formatted_data['mulliken']['atomic_charges']
+    loewdin_charges = formatted_data['loewdin']['atomic_charges']
+    
+    # Obtener átomos comunes
+    all_atoms = set(mulliken_charges.keys()) | set(loewdin_charges.keys())
+    atoms = sorted(list(all_atoms))
+    
+    mulliken_values = [mulliken_charges.get(atom, 0.0) for atom in atoms]
+    loewdin_values = [loewdin_charges.get(atom, 0.0) for atom in atoms]
+    
+    # 1. Cargas atómicas comparativas
+    x = np.arange(len(atoms))
+    width = 0.35
+    
+    bars1 = ax1.bar(x - width/2, mulliken_values, width, label='Mulliken', alpha=0.8, color='skyblue')
+    bars2 = ax1.bar(x + width/2, loewdin_values, width, label='Löwdin', alpha=0.8, color='lightcoral')
+    
+    ax1.set_xlabel('Átomos')
+    ax1.set_ylabel('Carga Atómica')
+    ax1.set_title('Comparación de Cargas Atómicas')
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(atoms)
+    ax1.legend()
+    ax1.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+    ax1.grid(True, alpha=0.3, axis='y')
+    
+    # Añadir valores en las barras
+    for bar in bars1 + bars2:
+        height = bar.get_height()
+        ax1.annotate(f'{height:.3f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontsize=8)
+    
+    # 2. Distribución de carga absoluta
+    abs_mulliken = [abs(q) for q in mulliken_values]
+    abs_loewdin = [abs(q) for q in loewdin_values]
+    
+    bars_abs1 = ax2.bar(x - width/2, abs_mulliken, width, label='Mulliken', alpha=0.8, color='skyblue')
+    bars_abs2 = ax2.bar(x + width/2, abs_loewdin, width, label='Löwdin', alpha=0.8, color='lightcoral')
+    
+    ax2.set_xlabel('Átomos')
+    ax2.set_ylabel('Carga Absoluta')
+    ax2.set_title('Distribución de Carga Absoluta')
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(atoms)
+    ax2.legend()
+    ax2.grid(True, alpha=0.3, axis='y')
+    
+    for bar in bars_abs1 + bars_abs2:
+        height = bar.get_height()
+        ax2.annotate(f'{height:.3f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontsize=8)
+    
+    # 3. Diferencias entre métodos
+    differences = [abs(m - l) for m, l in zip(mulliken_values, loewdin_values)]
+    bars_diff = ax3.bar(atoms, differences, alpha=0.8, color='orange')
+    ax3.set_xlabel('Átomos')
+    ax3.set_ylabel('Diferencia Absoluta |Mulliken - Löwdin|')
+    ax3.set_title('Diferencias entre Métodos')
+    ax3.grid(True, alpha=0.3, axis='y')
+    
+    for bar in bars_diff:
+        height = bar.get_height()
+        ax3.annotate(f'{height:.3f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontsize=8)
+    
+    # 4. Distribución de cargas (histograma)
+    all_charges = mulliken_values + loewdin_values
+    if all_charges:
+        bins = np.linspace(min(all_charges) - 0.1, max(all_charges) + 0.1, 15)
+        ax4.hist(mulliken_values, bins=bins, alpha=0.7, label='Mulliken', color='skyblue', edgecolor='black')
+        ax4.hist(loewdin_values, bins=bins, alpha=0.7, label='Löwdin', color='lightcoral', edgecolor='black')
+        ax4.axvline(x=0, color='black', linestyle='--', alpha=0.5, linewidth=1)
+        ax4.set_xlabel('Carga Atómica')
+        ax4.set_ylabel('Frecuencia')
+        ax4.set_title('Distribución de Cargas')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+    
+    # 5. Análisis orbital (si disponible)
+    orbital_data_available = False
+    for method in ['mulliken', 'loewdin']:
+        if formatted_data[method]['orbital_charges']:
+            orbital_data_available = True
+            break
+    
+    if orbital_data_available:
+        # Encontrar el primer átomo con datos orbitales para mostrar
+        sample_atom = None
+        sample_orbitals = {}
+        
+        for atom in atoms:
+            for method in ['mulliken', 'loewdin']:
+                orbital_charges = formatted_data[method]['orbital_charges']
+                for atom_key in orbital_charges.keys():
+                    if atom.lower() in atom_key.lower() or atom_key.split()[0] == '0':  # Primer átomo
+                        sample_atom = atom_key
+                        sample_orbitals = {
+                            'mulliken': orbital_charges.get(atom_key, {}),
+                            'loewdin': orbital_charges.get(atom_key, {})
+                        }
+                        break
+                if sample_atom:
+                    break
+            if sample_atom:
+                break
+        
+        if sample_atom and sample_orbitals:
+            # Obtener orbitales significativos
+            all_orbitals = set()
+            for method in ['mulliken', 'loewdin']:
+                for orbital, value in sample_orbitals[method].items():
+                    if abs(value) > 0.001:  # Solo valores significativos
+                        all_orbitals.add(orbital)
+            
+            if all_orbitals:
+                orbital_names = sorted(list(all_orbitals))
+                mulliken_orbital_values = [sample_orbitals['mulliken'].get(orb, 0.0) for orb in orbital_names]
+                loewdin_orbital_values = [sample_orbitals['loewdin'].get(orb, 0.0) for orb in orbital_names]
+                
+                x_orb = np.arange(len(orbital_names))
+                bars_orb1 = ax5.bar(x_orb - width/2, mulliken_orbital_values, width, label='Mulliken', alpha=0.8, color='skyblue')
+                bars_orb2 = ax5.bar(x_orb + width/2, loewdin_orbital_values, width, label='Löwdin', alpha=0.8, color='lightcoral')
+                
+                ax5.set_xlabel('Tipo de Orbital')
+                ax5.set_ylabel('Población Electrónica')
+                ax5.set_title(f'Población Orbital - {sample_atom} (valores > 0.001)')
+                ax5.set_xticks(x_orb)
+                ax5.set_xticklabels(orbital_names, rotation=45)
+                ax5.legend()
+                ax5.grid(True, alpha=0.3, axis='y')
+                
+                for bar in bars_orb1 + bars_orb2:
+                    height = bar.get_height()
+                    if abs(height) > 0.001:
+                        ax5.annotate(f'{height:.3f}',
+                                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                                    xytext=(0, 3),
+                                    textcoords="offset points",
+                                    ha='center', va='bottom', fontsize=8)
+            else:
+                ax5.text(0.5, 0.5, f'No hay datos orbitales significativos\npara {sample_atom}', 
+                        ha='center', va='center', transform=ax5.transAxes, fontsize=12)
+        else:
+            ax5.text(0.5, 0.5, 'No se encontraron datos orbitales detallados', 
+                    ha='center', va='center', transform=ax5.transAxes, fontsize=12)
+    else:
+        ax5.text(0.5, 0.5, 'No hay datos de población orbital disponibles', 
+                ha='center', va='center', transform=ax5.transAxes, fontsize=12)
+    
+    plt.tight_layout()
+    
+    # Mostrar información adicional
+    st.subheader("📊 Información de Análisis de Población")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Átomos analizados", len(atoms))
+    with col2:
+        if mulliken_values:
+            avg_diff = np.mean(differences) if differences else 0
+            st.metric("Diferencia promedio", f"{avg_diff:.4f}")
+    with col3:
+        if mulliken_values:
+            max_diff = max(differences) if differences else 0
+            st.metric("Diferencia máxima", f"{max_diff:.4f}")
+    with col4:
+        st.metric("Fuente de datos", source_file.name if source_file else "N/A")
+    
+    # Tabla de comparación detallada
+    if st.checkbox("Ver tabla de comparación detallada"):
+        st.subheader("📋 Comparación Detallada de Cargas Atómicas")
+        
+        comparison_data = []
+        for atom, m_charge, l_charge in zip(atoms, mulliken_values, loewdin_values):
+            comparison_data.append({
+                'Átomo': atom,
+                'Mulliken': f"{m_charge:.6f}",
+                'Löwdin': f"{l_charge:.6f}",
+                'Diferencia': f"{abs(m_charge - l_charge):.6f}",
+                '|Mulliken|': f"{abs(m_charge):.6f}",
+                '|Löwdin|': f"{abs(l_charge):.6f}"
+            })
+        
+        df_comparison = pd.DataFrame(comparison_data)
+        st.dataframe(df_comparison, use_container_width=True)
+    
+    # Estadísticas adicionales
+    if st.checkbox("Ver estadísticas de población"):
+        st.subheader("📈 Estadísticas de Población")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Estadísticas Mulliken:**")
+            if mulliken_values:
+                st.write(f"- Suma total: {sum(mulliken_values):.6f}")
+                st.write(f"- Valor medio: {np.mean(mulliken_values):.6f}")
+                st.write(f"- Desviación estándar: {np.std(mulliken_values):.6f}")
+                st.write(f"- Rango: {min(mulliken_values):.6f} a {max(mulliken_values):.6f}")
+        
+        with col2:
+            st.write("**Estadísticas Löwdin:**")
+            if loewdin_values:
+                st.write(f"- Suma total: {sum(loewdin_values):.6f}")
+                st.write(f"- Valor medio: {np.mean(loewdin_values):.6f}")
+                st.write(f"- Desviación estándar: {np.std(loewdin_values):.6f}")
+                st.write(f"- Rango: {min(loewdin_values):.6f} a {max(loewdin_values):.6f}")
+        
+        if differences:
+            st.write("**Análisis de Diferencias:**")
+            st.write(f"- Diferencia promedio entre métodos: {np.mean(differences):.6f}")
+            st.write(f"- Diferencia máxima: {max(differences):.6f}")
+            st.write(f"- Diferencia mínima: {min(differences):.6f}")
+            st.write(f"- Desviación estándar de diferencias: {np.std(differences):.6f}")
+    
+    return fig

@@ -23,11 +23,14 @@ Aplicación web desarrollada en Streamlit para el análisis de moléculas utiliz
    - Visualizaciones 3D y 2D
    - Análisis espectroscópico
 
-4. **🧪 Funciones de análisis**
+4. **🧪 Funciones de análisis avanzado**
    - Comparación con moléculas de referencia (NH₃)
-   - Función de distribución radial (RDF)
+   - Función de distribución radial (RDF) con MDAnalysis
    - Espectros IR y Raman
    - Análisis de desplazamientos químicos (RMN)
+   - Análisis de energías orbitales (HOMO-LUMO)
+   - **Análisis de población atómica (Mulliken/Löwdin)**
+   - Visualizaciones 3D interactivas
 
 ## 📁 Estructura del Proyecto
 
@@ -51,7 +54,16 @@ Trabajo-Moleculas/
 
 1. **Python 3.8+** con las siguientes librerías:
    ```bash
-   pip install streamlit numpy matplotlib plotly pandas pathlib
+   pip install streamlit numpy matplotlib plotly pandas pathlib MDAnalysis
+   ```
+
+   **Librerías incluidas en Python estándar** (no requieren instalación):
+   - `math`, `os`, `re`, `sys`, `time`, `datetime`, `subprocess`, `shutil`
+   - `pathlib`, `collections`, `typing`
+
+   **Instalación alternativa con versiones específicas** (recomendado):
+   ```bash
+   pip install streamlit>=1.28.0 numpy>=1.24.0 matplotlib>=3.6.0 plotly>=5.15.0 pandas>=2.0.0 MDAnalysis>=2.4.0
    ```
 
 2. **ORCA** (opcional, para cálculos cuánticos):
@@ -94,15 +106,26 @@ Trabajo-Moleculas/
 - **Paso 2**: Ejecuta cálculos ORCA (si está disponible)
 - **Paso 3**: Guarda resultados en `orca_outputs/`
 
-#### 🧪 **Visualizaciones**
+#### 🧪 **Visualizaciones y Análisis**
 - **3D/2D**: Representaciones moleculares interactivas
 - **Contenedor**: Simulación de múltiples moléculas
-- **Espectros**: IR, Raman, RMN
+- **Espectros**: IR, Raman, RMN con datos reales de ORCA
+- **Energías Orbitales**: Análisis HOMO-LUMO con gráficos mejorados
+- **Población Atómica**: Análisis de Mulliken y Löwdin con comparaciones
+- **RDF**: Función de distribución radial usando MDAnalysis
+- **Comparativas**: Análisis comparativo con moléculas de referencia
 
 #### 🔍 **Análisis Comparativo**
 - Comparación con moléculas de referencia
 - Análisis de diferencias geométricas
 - Métricas moleculares
+
+#### 🧬 **Análisis de Población Atómica**
+- **Mulliken vs Löwdin**: Comparación de métodos de análisis de población
+- **Cargas Atómicas**: Distribución de carga en cada átomo
+- **Población Orbital**: Análisis detallado de orbitales por átomo
+- **Estadísticas**: Diferencias, promedios y distribuciones
+- **Visualizaciones**: Gráficos comparativos y análisis de diferencias
 
 ## 🛠️ Configuración Avanzada
 
@@ -147,7 +170,12 @@ header = "! B3LYP 6-311+G(2d,p) AutoAux DEFGRID2 TIGHTSCF D3BJ\n"
    - Crear la carpeta y agregar archivos .xyz
 
 3. **Errores de dependencias**
-   - Instalar todas las librerías requeridas: `pip install streamlit numpy matplotlib plotly pandas`
+   - Instalar todas las librerías requeridas: `pip install streamlit numpy matplotlib plotly pandas MDAnalysis`
+   - Para MDAnalysis, puede requerir dependencias adicionales del sistema en Linux:
+     ```bash
+     sudo apt-get install python3-dev build-essential
+     ```
+   - En algunos sistemas, MDAnalysis puede requerir librerías adicionales para formatos específicos
 
 ### Logs y Debugging
 
@@ -198,4 +226,4 @@ Si encuentras bugs o tienes sugerencias:
 
 **Desarrollado por:** Experto en Ciencias Computacionales  
 **Fecha:** Septiembre 2025  
-**Versión:** 2.0
+**Versión:** 2.1 - Actualización con análisis RDF y mejoras en energías orbitales
