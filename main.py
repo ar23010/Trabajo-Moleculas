@@ -26,6 +26,8 @@ from spectra import (
     comparar_rmn_s4_vs_nh3,
     get_molecule_outputs
 )
+from spectra import plot_ir_spectrum, plot_ir_spectrum_comparison, get_ir_spectrum_data, create_educational_comparison_tables
+from orca_parsers import parse_vibrational_frequencies
 
 # Importar el gestor de configuración
 from molecular_config_manager import MolecularConfigManager
@@ -67,6 +69,7 @@ def main():
             "🧬 Análisis de Población (Mulliken/Löwdin)",
             "🔬 Trabajo de adhesión",
             "📊 Función de Distribución Radial", 
+            "📉 Espectro IR Teórico",
             "⚛️ Molécula teórica (RDF)",
             "🌈 Espectros Raman",
             "🔍 Comparación con NH₃",
@@ -270,7 +273,56 @@ def main():
             if molecula_seleccionada:
                 analyze_molecule_rdf(molecula_seleccionada)
             else:
-                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")        
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+
+        elif option == "📉 Espectro IR Teórico":
+            st.header("📉 Análisis de Espectro IR")
+
+            if not molecula_seleccionada:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+                return
+
+            try:
+                outputs = get_molecule_outputs(molecula_seleccionada)
+                if not outputs['opt'].exists():
+                    st.error(f"No se encontró el archivo IR/Raman para {molecula_seleccionada}")
+                    st.info("💡 Ejecuta primero 'Procesar con ORCA' para generar los archivos necesarios.")
+                    return
+
+                ir_data = parse_vibrational_frequencies(outputs['opt'])
+                if ir_data is None or ir_data.empty:
+                    st.warning("No se encontraron datos de frecuencias vibracionales válidos.")
+                    return
+
+                # Opciones de visualización
+                st.subheader("🔬 Opciones de Visualización")
+
+                comparison_type = st.radio(
+                    "Selecciona el tipo de análisis:",
+                    ["🔍 Comparación Educativa (Frecuencias Fundamentales vs Espectro IR)", "🧪 Solo espectro ORCA simulado"],
+                    captions=[
+                        "Comparación conceptual: Modos vibracionales puros vs Simulación espectroscópica",
+                        "Muestra únicamente el espectro simulado de ORCA"
+                    ]
+                )
+
+                # Generar gráfico según selección
+                if comparison_type == "🔍 Comparación Educativa (Frecuencias Fundamentales vs Espectro IR)":
+                    fig = plot_ir_spectrum_comparison(ir_data, molecula_seleccionada)
+                else:
+                    fig = plot_ir_spectrum(ir_data)
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Análisis detallado (solo para comparación educativa)
+                if comparison_type == "🔍 Comparación Educativa (Frecuencias Fundamentales vs Espectro IR)":
+                    with st.expander("📋 Análisis Detallado de Conceptos"):
+                        final_ir_data = get_ir_spectrum_data()
+                        create_educational_comparison_tables(ir_data, final_ir_data)
+
+            except Exception as e:
+                st.error(f"Error procesando espectro IR: {e}") 
+                        
                 
     else:
         # Si no hay molécula seleccionada
