@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import time
 import datetime
+import pandas as pd
+import numpy as np
 
 # Ruta del ejecutable de ORCA (personalizable por el usuario)
 ORCA_BIN = "/home/jonathan/Trabajos_de_Orca/orca-6.1.0-f.0_linux_x86-64/bin/orca"
@@ -274,6 +276,112 @@ class OrcaSpectrumExtractor:
             'orbital_energies': self.extract_orbital_energies(content),
             'population_data': self.extract_population_analysis(content)
         }
+
+
+def parse_vibrational_frequencies(out_file: Path) -> pd.DataFrame:
+    """
+    Extrae frecuencias vibracionales e intensidades IR de un archivo .out de ORCA.
+    Si no encuentra datos en .out, intenta leer del archivo .hess correspondiente.
+    Retorna DataFrame con columnas: mode, frequency, intensity
+    """
+    if not out_file.exists():
+        return pd.DataFrame(columns=['mode', 'frequency', 'intensity'])
+    
+    # Primero intentar del archivo .out
+    try:
+        with open(out_file, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        # Extraer frecuencias del bloque VIBRATIONAL FREQUENCIES
+        frequencies = {}
+        freq_pattern = r"VIBRATIONAL FREQUENCIES\s*\n\s*-+\s*\n(.*?)(?=\n\s*\n|\n-+|\nNORMAL MODES|\Z)"
+        freq_match = re.search(freq_pattern, content, re.DOTALL)
+        
+        if freq_match:
+            freq_lines = freq_match.group(1).strip().split('\n')
+            for line in freq_lines:
+                # Formato típico: "  0:         0.00 cm**-1"
+                freq_line_match = re.match(r'\s*(\d+):\s*([-+]?\d*\.?\d+)\s*cm\*\*-1', line)
+                if freq_line_match:
+                    mode = int(freq_line_match.group(1))
+                    freq = float(freq_line_match.group(2))
+                    if freq > 0:  # Solo frecuencias positivas
+                        frequencies[mode] = freq
+        
+        # Extraer intensidades del bloque IR SPECTRUM
+        intensities = {}
+        ir_pattern = r"IR SPECTRUM\s*\n\s*-+.*?\n(.*?)(?=\n\s*\n|\n-+|\nRAMAN SPECTRUM|\Z)"
+        ir_match = re.search(ir_pattern, content, re.DOTALL)
+        
+        if ir_match:
+            ir_lines = ir_match.group(1).strip().split('\n')
+            for line in ir_lines:
+                # Formato típico: "  6:   3756.84   0.000000     42.89    0.000175"
+                ir_line_match = re.match(r'\s*(\d+):\s*([-+]?\d*\.?\d+)\s+\d*\.?\d*\s+([-+]?\d*\.?\d+)', line)
+                if ir_line_match:
+                    mode = int(ir_line_match.group(1))
+                    intensity = float(ir_line_match.group(3))
+                    intensities[mode] = intensity
+        
+        # Combinar frecuencias e intensidades
+        data = []
+        for mode in frequencies:
+            if mode in intensities:
+                data.append({
+                    'mode': mode,
+                    'frequency': frequencies[mode],
+                    'intensity': intensities[mode]
+                })
+        
+        if data:
+            df = pd.DataFrame(data)
+            return df.sort_values('frequency').reset_index(drop=True)
+        
+    except Exception as e:
+        print(f"Error parseando archivo .out: {e}")
+    
+    # Si no se encontraron datos en .out, intentar archivo .hess
+    hess_file = out_file.with_suffix('.hess')
+    
+    if hess_file.exists():
+        try:
+            with open(hess_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            # Buscar sección $vibrational_frequencies
+            freq_pattern = r'\$vibrational_frequencies\s*\n\s*\d+\s*\n(.*?)(?=\$|$)'
+            freq_match = re.search(freq_pattern, content, re.DOTALL)
+            
+            if freq_match:
+                freq_lines = freq_match.group(1).strip().split('\n')
+                
+                data = []
+                for line in freq_lines:
+                    line = line.strip()
+                    if line:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            try:
+                                mode = int(parts[0])
+                                freq = float(parts[1])
+                                # Solo incluir frecuencias no cero (modos vibracionales reales)
+                                if freq > 0.1:  # Filtrar frecuencias muy pequeñas (traslaciones/rotaciones)
+                                    data.append({
+                                        'mode': mode,
+                                        'frequency': freq,
+                                        'intensity': 1.0  # Intensidad por defecto
+                                    })
+                            except (ValueError, IndexError):
+                                continue
+                
+                if data:
+                    df = pd.DataFrame(data)
+                    return df.sort_values('frequency').reset_index(drop=True)
+                        
+        except Exception as e:
+            print(f"Error parseando archivo .hess: {e}")
+    
+    return pd.DataFrame(columns=['mode', 'frequency', 'intensity'])
 
 
 class OrcaOutputGenerator:

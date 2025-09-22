@@ -2,6 +2,7 @@
 import streamlit as st
 from pathlib import Path
 import os
+import pandas as pd
 
 from rdf_analysis import analyze_molecule_rdf
 # Importar funciones de spectra
@@ -18,6 +19,8 @@ from spectra import (
     dibujar_energias_scf,
     dibujar_energias_orbitales,
     dibujar_analisis_poblacion,
+    plot_ir_spectrum,
+    plot_ir_spectrum_comparison,
     graficar_trabajo_adhesion,
     mostrar_rdf,
     mostrar_ir_raman,
@@ -29,6 +32,7 @@ from spectra import (
 
 # Importar el gestor de configuración
 from molecular_config_manager import MolecularConfigManager
+from generar_out import parse_vibrational_frequencies
 
 # ---------- MAIN MODIFICADO ----------
 def main():
@@ -66,7 +70,8 @@ def main():
             "🔬 Energías Orbitales",
             "🧬 Análisis de Población (Mulliken/Löwdin)",
             "🔬 Trabajo de adhesión",
-            "📊 Función de Distribución Radial", 
+            "📊 Función de Distribución Radial",
+            "📉 Espectro IR Teórico",
             "⚛️ Molécula teórica (RDF)",
             "🌈 Espectros Raman",
             "🔍 Comparación con NH₃",
@@ -108,7 +113,7 @@ def main():
             
             fig = dibujar_molecula_3d(molecula_seleccionada)
             if fig:
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
         elif option == "📊 Molécula 2D":
             st.header(f"📊 Visualización 2D - {molecula_seleccionada}")
@@ -138,7 +143,7 @@ def main():
                     # Usar la nueva función dinámica con la molécula seleccionada
                     fig = dibujar_conjunto_molecula(molecula_seleccionada)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                 else:
                     st.warning("⚠️ No se encontraron archivos de ORCA. Ejecuta primero el procesamiento.")
             
@@ -159,7 +164,7 @@ def main():
                 atoms_per_molecule=atoms_per_molecule,
                 box=box_size
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         elif option == "📈 Espectro IR":
             st.header(f"📈 Espectro Infrarrojo - {molecula_seleccionada}")
@@ -270,8 +275,192 @@ def main():
             if molecula_seleccionada:
                 analyze_molecule_rdf(molecula_seleccionada)
             else:
-                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")        
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")  
+
+        elif option == "📉 Espectro IR Teórico":
+            st.header("📉 Análisis de Espectro IR")
+            if molecula_seleccionada:
+                try:
+                    outputs = get_molecule_outputs(molecula_seleccionada)
+                    if outputs['ir-raman'].exists():
+                        ir_data = parse_vibrational_frequencies(outputs['ir-raman'])
+                        if ir_data is not None and not ir_data.empty:
+                            # Ofrecer opciones de visualización
+                            st.subheader("🔬 Opciones de Visualización")
+                            
+                            comparison_type = st.radio(
+                                "Selecciona el tipo de análisis:",
+                                ["� Comparación Educativa (Frecuencias Fundamentales vs Espectro IR)", "🧪 Solo espectro ORCA simulado"],
+                                captions=[
+                                    "Comparación conceptual: Modos vibracionales puros vs Simulación espectroscópica",
+                                    "Muestra únicamente el espectro simulado de ORCA"
+                                ]
+                            )
+                            
+                            if comparison_type == "� Comparación Educativa (Frecuencias Fundamentales vs Espectro IR)":
+                                fig = plot_ir_spectrum_comparison(ir_data, molecula_seleccionada)
+                            else:
+                                fig = plot_ir_spectrum(ir_data)
+                                
+                            st.plotly_chart(fig, width='stretch')
+                            
+                            # Mostrar tabla de datos
+                            with st.expander("📋 Análisis Detallado de Conceptos"):
+                                
+                                # Información educativa
+                                st.markdown("""
+                                ### 📚 **Conceptos Fundamentales**
+                                
+                                | **Concepto** | **Qué representa** | **Dónde se ve** |
+                                |--------------|-------------------|-----------------|
+                                | **Frecuencias Fundamentales** | Valores numéricos exactos de modos vibracionales | Líneas verticales rojas (gráfico superior) |
+                                | **Espectro IR Teórico** | Simulación de cómo se vería experimentalmente | Curva azul continua (gráfico inferior) |
+                                | **Intensidad IR** | Qué tan fuerte es la absorción de cada modo | Altura de los picos en el espectro |
+                                | **Modos Activos** | Vibraciones que absorben radiación infrarroja | Picos visibles en el espectro teórico |
+                                """)
+                                
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.subheader("� Frecuencias Fundamentales")
+                                    st.caption("Modos vibracionales calculados por ORCA")
+                                    # Crear tabla educativa
+                                    freq_df = ir_data.copy()
+                                    freq_df['frequency'] = freq_df['frequency'].round(1)
+                                    freq_df.columns = ['Modo', 'Frecuencia (cm⁻¹)', 'Peso Relativo']
+                                    freq_df['Tipo'] = 'Modo Vibracional'
+                                    freq_df['Descripción'] = freq_df.apply(
+                                        lambda x: f"Vibración a {x['Frecuencia (cm⁻¹)']} cm⁻¹", axis=1
+                                    )
+                                    st.dataframe(freq_df[['Modo', 'Frecuencia (cm⁻¹)', 'Tipo', 'Descripción']], hide_index=True)
+                                
+                                with col2:
+                                    st.subheader("📊 Espectro IR Teórico")
+                                    st.caption("Intensidades de absorción infrarroja")
+                                    
+                                    # Intentar leer datos de espectro IR
+                                    final_ir_path = Path("modelos/FINAL_ir_spectrum.txt")
+                                    if final_ir_path.exists():
+                                        try:
+                                            with open(final_ir_path, 'r') as f:
+                                                content = f.read()
+                                            
+                                            ir_spec_data = []
+                                            lines = content.strip().split('\n')
+                                            for line in lines:
+                                                if ':' in line and 'cm**-1' not in line:
+                                                    parts = line.split(':')
+                                                    if len(parts) >= 2:
+                                                        try:
+                                                            mode = int(parts[0].strip())
+                                                            data_part = parts[1].strip()
+                                                            values = data_part.split()
+                                                            if len(values) >= 3:
+                                                                freq = float(values[0])
+                                                                intensity = float(values[2])
+                                                                
+                                                                # Clasificar intensidad
+                                                                if intensity > 50:
+                                                                    intensity_class = "Fuerte"
+                                                                elif intensity > 10:
+                                                                    intensity_class = "Media"
+                                                                else:
+                                                                    intensity_class = "Débil"
+                                                                
+                                                                ir_spec_data.append({
+                                                                    'Modo': mode,
+                                                                    'Frecuencia (cm⁻¹)': round(freq, 1),
+                                                                    'Intensidad (km/mol)': round(intensity, 1),
+                                                                    'Clasificación': intensity_class,
+                                                                    'Actividad IR': 'Activo' if intensity > 1 else 'Muy débil'
+                                                                })
+                                                        except (ValueError, IndexError):
+                                                            continue
+                                            
+                                            if ir_spec_data:
+                                                ir_df = pd.DataFrame(ir_spec_data)
+                                                st.dataframe(ir_df, hide_index=True)
+                                                
+                                                # Análisis comparativo educativo
+                                                st.subheader("📈 Análisis Conceptual")
+                                                st.markdown("""
+                                                **🔍 Correspondencia entre conceptos:**
+                                                - **Frecuencia:** Los valores deben coincidir entre ambas tablas
+                                                - **Intensidad:** Solo visible en el espectro IR (no en frecuencias fundamentales)
+                                                - **Actividad IR:** Modos con intensidad >1 km/mol son observables experimentalmente
+                                                """)
+                                                
+                                                if len(ir_df) == len(freq_df):
+                                                    # Mostrar correspondencia
+                                                    corresp_df = pd.DataFrame({
+                                                        'Modo': ir_df['Modo'],
+                                                        'Freq. Fundamental': freq_df['Frecuencia (cm⁻¹)'].values,
+                                                        'Freq. Espectro IR': ir_df['Frecuencia (cm⁻¹)'],
+                                                        'Diferencia': (freq_df['Frecuencia (cm⁻¹)'].values - ir_df['Frecuencia (cm⁻¹)']).round(2),
+                                                        'Intensidad IR': ir_df['Intensidad (km/mol)'],
+                                                        'Observabilidad': ir_df['Actividad IR']
+                                                    })
+                                                    st.dataframe(corresp_df, hide_index=True)
+                                                    
+                                                    # Estadísticas
+                                                    st.metric("Concordancia frecuencias", f"{(corresp_df['Diferencia'].abs() < 1).sum()}/{len(corresp_df)} modos")
+                                                    
+                                            else:
+                                                st.info("No se encontraron datos de espectro IR")
+                                                
+                                        except Exception as e:
+                                            st.error(f"Error leyendo espectro IR: {e}")
+                                    else:
+                                        st.info("Archivo FINAL_ir_spectrum.txt no encontrado")
+                                
+                        else:
+                            st.warning("No se encontraron datos de frecuencias vibracionales válidos.")
+                    else:
+                        st.error(f"No se encontró el archivo IR/Raman para {molecula_seleccionada}")
+                        st.info("💡 Ejecuta primero 'Procesar con ORCA' para generar los archivos necesarios.")
+                except Exception as e:
+                    st.error(f"Error procesando espectro IR: {e}")
+            else:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")      
                 
+        elif option == "⚛️ Molécula teórica (RDF)":
+            st.header("⚛️ Molécula Teórica (RDF)")
+            if molecula_seleccionada:
+                mostrar_rdf(molecula_seleccionada)
+            else:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+
+        elif option == "🌈 Espectros Raman":
+            st.header("🌈 Análisis de Espectros Raman")
+            if molecula_seleccionada:
+                mostrar_ir_raman(molecula_seleccionada)
+            else:
+                st.warning("⚠️ Selecciona primero una molécula en el menú lateral.")
+
+        elif option == "🔍 Comparación con NH₃":
+            st.header("🔍 Comparación con NH₃")
+            ruta = "modelos/nh3_frame.txt"
+            if os.path.exists(ruta):
+                comparar_moleculas_orca_vs_nh3(ruta)
+            else:
+                st.error(f"No se encontró el archivo: {ruta}")
+
+        elif option == "🧬 IR/Raman vs NH₃":
+            st.header("🧬 Comparación IR/Raman vs NH₃")
+            ruta = "modelos/FINAL_combined_spectra.txt"
+            if os.path.exists(ruta):
+                comparar_ir_raman_vs_nh3(ruta)
+            else:
+                st.error(f"No se encontró el archivo: {ruta}")
+        
+        elif option == "📉 Desplazamientos químicos":
+            st.header("📉 Análisis de Desplazamientos Químicos (RMN)")
+            ruta = "modelos/paso_4.txt"
+            if os.path.exists(ruta):
+                comparar_rmn_s4_vs_nh3(ruta)
+            else:
+                st.error(f"No se encontró el archivo: {ruta}")
+
     else:
         # Si no hay molécula seleccionada
         st.warning("⚠️ Por favor, asegúrate de que la carpeta 'moleculas_xyz' contenga archivos .xyz")
