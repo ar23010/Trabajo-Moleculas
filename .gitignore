@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# ORCA output files (archivos binarios pesados)
+*.gbw
+*.densities
+*.densitiesinfo
+*.engrad
+*.ges
+*.hess
+*.opt
+*_trj.xyz
+*.property.txt
+
+# Archivos temporales
+temp_trajectories/
+*.tmp
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
