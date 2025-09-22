@@ -1434,12 +1434,11 @@ def mostrar_rdf():
 
     st.pyplot(fig)
 
-#----- Raman -----
 def mostrar_ir_raman(ruta_paso_1):
     """
-    Lee un archivo de espectros (IR y Raman) y grafica ambos junto con tablas comparativas.
+    Lee un archivo de espectros (IR y Raman) y grafica ambos con suavizado gaussiano.
     """
-    # --- Parsear archivo ---
+    # --- Parsear archivo --- (MISMO CÓDIGO ORIGINAL)
     ir_data, raman_data = [], []
     seccion = None
     with open(ruta_paso_1, "r") as f:
@@ -1480,21 +1479,73 @@ def mostrar_ir_raman(ruta_paso_1):
     df_ir = pd.DataFrame(ir_data)
     df_raman = pd.DataFrame(raman_data)
 
-    # --- Graficar IR ---
-    fig_ir, ax_ir = plt.subplots(figsize=(7, 4))
-    ax_ir.plot(df_ir["Freq (cm^-1)"], df_ir["Int (km/mol)"], "-o", color="blue")
-    ax_ir.set_title("Espectro IR")
-    ax_ir.set_xlabel("Frecuencia (cm⁻¹)")
-    ax_ir.set_ylabel("Intensidad (km/mol)")
+    # --- Crear espectros suavizados (NUEVO ESTILO DE GRÁFICOS) ---
+    # Espectro IR suavizado
+    fig_ir, ax_ir = plt.subplots(figsize=(10, 6))
+    
+    if not df_ir.empty and 'Freq (cm^-1)' in df_ir.columns and 'Int (km/mol)' in df_ir.columns:
+        frequencies_ir = df_ir['Freq (cm^-1)'].values
+        intensities_ir = df_ir['Int (km/mol)'].values
+        
+        # Crear rango de frecuencias para el espectro suavizado
+        freq_range_ir = np.linspace(400, max(frequencies_ir) + 200, 2000)
+        spectrum_ir = np.zeros_like(freq_range_ir)
+        
+        for freq, intensity in zip(frequencies_ir, intensities_ir):
+            gaussian = intensity * np.exp(-0.5 * ((freq_range_ir - freq) / 15) ** 2)
+            spectrum_ir += gaussian
+        
+        # Graficar espectro suavizado IR
+        ax_ir.plot(freq_range_ir, spectrum_ir, 'b-', linewidth=1.5, label='Espectro IR')
+        ax_ir.fill_between(freq_range_ir, spectrum_ir, alpha=0.3, color='blue')
+        
+        # Marcar picos principales IR
+        for freq, intensity in zip(frequencies_ir, intensities_ir):
+            if intensity > np.max(intensities_ir) * 0.1:
+                ax_ir.axvline(x=freq, color='red', linestyle='--', alpha=0.7, linewidth=1)
+                ax_ir.text(freq, intensity * 1.1, f'{freq:.0f}', 
+                          rotation=90, ha='center', va='bottom', fontsize=8)
+        
+        ax_ir.invert_xaxis()
+        ax_ir.set_title("Espectro IR")
+        ax_ir.set_xlabel("Frecuencia (cm⁻¹)")
+        ax_ir.set_ylabel("Intensidad (km/mol)")
+        ax_ir.legend()
+        ax_ir.grid(alpha=0.3)
 
-    # --- Graficar Raman ---
-    fig_raman, ax_raman = plt.subplots(figsize=(7, 4))
-    ax_raman.plot(df_raman["Freq (cm^-1)"], df_raman["Actividad"], "-o", color="green")
-    ax_raman.set_title("Espectro Raman")
-    ax_raman.set_xlabel("Frecuencia (cm⁻¹)")
-    ax_raman.set_ylabel("Actividad")
+    # Espectro Raman suavizado
+    fig_raman, ax_raman = plt.subplots(figsize=(10, 6))
+    
+    if not df_raman.empty and 'Freq (cm^-1)' in df_raman.columns and 'Actividad' in df_raman.columns:
+        frequencies_raman = df_raman['Freq (cm^-1)'].values
+        intensities_raman = df_raman['Actividad'].values
+        
+        # Crear rango de frecuencias para el espectro suavizado
+        freq_range_raman = np.linspace(0, max(frequencies_raman) + 200, 2000)
+        spectrum_raman = np.zeros_like(freq_range_raman)
+        
+        for freq, intensity in zip(frequencies_raman, intensities_raman):
+            gaussian = intensity * np.exp(-0.5 * ((freq_range_raman - freq) / 15) ** 2)
+            spectrum_raman += gaussian
+        
+        # Graficar espectro suavizado Raman
+        ax_raman.plot(freq_range_raman, spectrum_raman, 'g-', linewidth=1.5, label='Espectro Raman')
+        ax_raman.fill_between(freq_range_raman, spectrum_raman, alpha=0.3, color='green')
+        
+        # Marcar picos principales Raman
+        for freq, intensity in zip(frequencies_raman, intensities_raman):
+            if intensity > np.max(intensities_raman) * 0.1:
+                ax_raman.axvline(x=freq, color='orange', linestyle='--', alpha=0.7, linewidth=1)
+                ax_raman.text(freq, intensity * 1.1, f'{freq:.0f}', 
+                             rotation=90, ha='center', va='bottom', fontsize=8)
+        
+        ax_raman.set_title("Espectro Raman")
+        ax_raman.set_xlabel("Frecuencia (cm⁻¹)")
+        ax_raman.set_ylabel("Actividad")
+        ax_raman.legend()
+        ax_raman.grid(alpha=0.3)
 
-    # --- Mostrar en Streamlit ---
+    # --- Mostrar en Streamlit (MISMA ESTRUCTURA ORIGINAL) ---
     st.subheader("Tabla IR")
     st.dataframe(df_ir)
 
@@ -1507,6 +1558,7 @@ def mostrar_ir_raman(ruta_paso_1):
     st.subheader("Espectro Raman")
     st.pyplot(fig_raman)
 
+    return fig_ir, fig_raman
 
 # ----------------- Utilidades compartidas -----------------
 _RE_XYZ = re.compile(
