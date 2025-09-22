@@ -2253,18 +2253,16 @@ def dibujar_analisis_poblacion(molecule_name):
         # Si no se puede obtener información de elementos, usar datos sin formatear
         formatted_data = population_data
     
-    # Crear figura con múltiples subplots
-    fig = plt.figure(figsize=(16, 12))
+    # Crear figura con múltiples subplots en layout vertical (5 filas, 1 columna)
+    fig = plt.figure(figsize=(12, 20))
     fig.suptitle(f'Análisis de Población Atómica - {molecule_name}', fontsize=16, fontweight='bold')
     
-    # Layout de subplots
-    gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.5], hspace=0.3, wspace=0.3)
-    
-    ax1 = fig.add_subplot(gs[0, 0])  # Cargas atómicas comparativas
-    ax2 = fig.add_subplot(gs[0, 1])  # Cargas absolutas
-    ax3 = fig.add_subplot(gs[1, 0])  # Diferencias entre métodos
-    ax4 = fig.add_subplot(gs[1, 1])  # Distribución de cargas
-    ax5 = fig.add_subplot(gs[2, :])  # Análisis orbital detallado
+    # Layout de subplots - 5 filas, 1 columna
+    ax1 = plt.subplot(5, 1, 1)  # Cargas atómicas comparativas
+    ax2 = plt.subplot(5, 1, 2)  # Cargas absolutas
+    ax3 = plt.subplot(5, 1, 3)  # Diferencias entre métodos
+    ax4 = plt.subplot(5, 1, 4)  # Distribución de cargas
+    ax5 = plt.subplot(5, 1, 5)  # Análisis orbital detallado
     
     # Datos para gráficos
     mulliken_charges = formatted_data['mulliken']['atomic_charges']
@@ -2425,6 +2423,8 @@ def dibujar_analisis_poblacion(molecule_name):
         ax5.text(0.5, 0.5, 'No hay datos de población orbital disponibles', 
                 ha='center', va='center', transform=ax5.transAxes, fontsize=12)
     
+    # Ajustar espaciado para layout vertical
+    plt.subplots_adjust(hspace=0.4)
     plt.tight_layout()
     
     # Mostrar información adicional
