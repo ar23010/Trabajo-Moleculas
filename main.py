@@ -64,14 +64,14 @@ def main():
             "🔗 Conjunto de moléculas",
             "📦 Contenedor de moléculas",
             "📈 Espectro IR",
+            "🌈 Espectros Raman",
             "⚡ Energías SCF",
             "🔬 Energías Orbitales",
             "🧬 Análisis de Población (Mulliken/Löwdin)",
-            "🔬 Trabajo de adhesión",
-            "📊 Función de Distribución Radial", 
             "📉 Espectro IR Teórico",
+            "📊 Función de Distribución Radial",
+            "🔬 Trabajo de adhesión",
             "⚛️ Molécula teórica (RDF)",
-            "🌈 Espectros Raman",
             "🔍 Comparación con NH₃",
             "🧬 IR/Raman vs NH₃",
             "📉 Desplazamientos químicos"
@@ -234,7 +234,7 @@ def main():
             mostrar_rdf()
 
         elif option == "🌈 Espectros Raman":
-            st.header("🌈 Análisis de Espectros IR y Raman")
+            st.header(" Análisis de Espectro Raman")
             ruta_paso_3 = "modelos/FINAL_combined_spectra.txt"
             if os.path.exists(ruta_paso_3):
                 mostrar_ir_raman(ruta_paso_3)
@@ -266,7 +266,6 @@ def main():
                 st.error(f"No se encontró el archivo: {ruta}")
 
         elif option == "📊 Función de Distribución Radial":
-            st.header("📊 Análisis de Función de Distribución Radial")
             if molecula_seleccionada:
                 analyze_molecule_rdf(molecula_seleccionada)
             else:

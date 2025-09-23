@@ -263,8 +263,8 @@ def dibujar_energias_scf(molecule_name):
         st.error(f"⚠️ No se pudieron extraer las energías SCF de {molecule_name}")
         return None
 
-    # --- NUEVA SECCIÓN: ANÁLISIS ANALÍTICO ---
-    st.subheader("🧮 Análisis Analítico de las Energías SCF")
+    # --- NUEVA SECCIÓN: Método Analítico ---
+    st.subheader(" Método analítico de las Energías SCF")
     
     # 1. Mostrar las fórmulas fundamentales
     st.markdown("""
@@ -532,7 +532,7 @@ def dibujar_energias_scf(molecule_name):
         st.dataframe(df_energias, use_container_width=True)
     
     # --- CONCLUSIÓN ANALÍTICA ---
-    st.subheader("🎯 Conclusión del Análisis Analítico")
+    st.subheader("🎯 Conclusión del Método Analítico")
     
     # Evaluación general
     conclusiones = []
@@ -596,8 +596,8 @@ def dibujar_energias_orbitales(molecule_name):
         st.error(f"⚠️ No se pudieron extraer las energías orbitales de {molecule_name}")
         return None
 
-    # --- NUEVA SECCIÓN: ANÁLISIS ANALÍTICO ORBITAL ---
-    st.subheader("🧮 Análisis Analítico de Energías Orbitales")
+    # --- NUEVA SECCIÓN: Método Analítico ORBITAL ---
+    st.subheader("🧮 Método Analítico de Energías Orbitales")
     
     # 1. Teoría de Orbitales Moleculares
     st.markdown("### 📚 Fundamentos Teóricos de Orbitales Moleculares")
@@ -1779,27 +1779,12 @@ def mostrar_ir_raman(ruta_paso_1):
             linea = linea.strip()
             if not linea or linea.startswith("#"):
                 continue
-            if linea.startswith("IR SPECTRUM"):
-                seccion = "IR"
-                continue
             elif linea.startswith("RAMAN SPECTRUM"):
                 seccion = "RAMAN"
                 continue
             elif linea[0].isdigit():  # Datos
                 partes = linea.replace(":", "").replace("(", "").replace(")", "").split()
-                if seccion == "IR":
-                    modo, freq, eps, intensidad, t2, tx, ty, tz = partes
-                    ir_data.append({
-                        "Mode": int(modo),
-                        "Freq (cm^-1)": float(freq),
-                        "Eps (L/mol*cm)": float(eps),
-                        "Int (km/mol)": float(intensidad),
-                        "T^2 (a.u.)": float(t2),
-                        "Tx": float(tx),
-                        "Ty": float(ty),
-                        "Tz": float(tz)
-                    })
-                elif seccion == "RAMAN":
+                if seccion == "RAMAN":
                     modo, freq, actividad, depol = partes
                     raman_data.append({
                         "Mode": int(modo),
@@ -1811,40 +1796,6 @@ def mostrar_ir_raman(ruta_paso_1):
     # Convertir a DataFrames
     df_ir = pd.DataFrame(ir_data)
     df_raman = pd.DataFrame(raman_data)
-
-    # --- Crear espectros suavizados (NUEVO ESTILO DE GRÁFICOS) ---
-    # Espectro IR suavizado
-    fig_ir, ax_ir = plt.subplots(figsize=(10, 6))
-    
-    if not df_ir.empty and 'Freq (cm^-1)' in df_ir.columns and 'Int (km/mol)' in df_ir.columns:
-        frequencies_ir = df_ir['Freq (cm^-1)'].values
-        intensities_ir = df_ir['Int (km/mol)'].values
-        
-        # Crear rango de frecuencias para el espectro suavizado
-        freq_range_ir = np.linspace(400, max(frequencies_ir) + 200, 2000)
-        spectrum_ir = np.zeros_like(freq_range_ir)
-        
-        for freq, intensity in zip(frequencies_ir, intensities_ir):
-            gaussian = intensity * np.exp(-0.5 * ((freq_range_ir - freq) / 15) ** 2)
-            spectrum_ir += gaussian
-        
-        # Graficar espectro suavizado IR
-        ax_ir.plot(freq_range_ir, spectrum_ir, 'b-', linewidth=1.5, label='Espectro IR')
-        ax_ir.fill_between(freq_range_ir, spectrum_ir, alpha=0.3, color='blue')
-        
-        # Marcar picos principales IR
-        for freq, intensity in zip(frequencies_ir, intensities_ir):
-            if intensity > np.max(intensities_ir) * 0.1:
-                ax_ir.axvline(x=freq, color='red', linestyle='--', alpha=0.7, linewidth=1)
-                ax_ir.text(freq, intensity * 1.1, f'{freq:.0f}', 
-                          rotation=90, ha='center', va='bottom', fontsize=8)
-        
-        ax_ir.invert_xaxis()
-        ax_ir.set_title("Espectro IR")
-        ax_ir.set_xlabel("Frecuencia (cm⁻¹)")
-        ax_ir.set_ylabel("Intensidad (km/mol)")
-        ax_ir.legend()
-        ax_ir.grid(alpha=0.3)
 
     # Espectro Raman suavizado
     fig_raman, ax_raman = plt.subplots(figsize=(10, 6))
@@ -1879,19 +1830,13 @@ def mostrar_ir_raman(ruta_paso_1):
         ax_raman.grid(alpha=0.3)
 
     # --- Mostrar en Streamlit (MISMA ESTRUCTURA ORIGINAL) ---
-    st.subheader("Tabla IR")
-    st.dataframe(df_ir)
-
-    st.subheader("Espectro IR")
-    st.pyplot(fig_ir)
-
     st.subheader("Tabla Raman")
     st.dataframe(df_raman)
 
     st.subheader("Espectro Raman")
     st.pyplot(fig_raman)
 
-    return fig_ir, fig_raman
+    return fig_raman
 
 # ----------------- Utilidades compartidas -----------------
 _RE_XYZ = re.compile(
@@ -2629,8 +2574,8 @@ def dibujar_analisis_poblacion(molecule_name):
     except:
         formatted_data = population_data
 
-    # --- NUEVA SECCIÓN: ANÁLISIS ANALÍTICO DE POBLACIÓN ---
-    st.subheader("🧮 Análisis Analítico de Población Electrónica")
+    # --- NUEVA SECCIÓN: Método Analítico DE POBLACIÓN ---
+    st.subheader("🧮 Método Analítico de Población Electrónica")
     
     # 1. Teoría de los Métodos de Población
     st.markdown("### 📚 Fundamentos Teóricos de los Métodos de Población")
@@ -3011,9 +2956,70 @@ def plot_ir_spectrum_comparison(orca_data: pd.DataFrame, molecule_name: str) -> 
     """
     Genera comparación conceptual: Frecuencias Fundamentales vs Espectro IR Teórico.
     """
-    # Usar la nueva función para obtener datos del espectro IR
-    ir_spectrum_data = get_ir_spectrum_data()
+    # --- Método Analítico ---
+    st.subheader("🧮 Método Analítico de Espectroscopía IR")
     
+    # 1. Fundamentos teóricos
+    st.markdown("### 📚 Fundamentos Teóricos de la Espectroscopía IR")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.latex(r"""
+        \tilde{\nu} = \frac{1}{2\pi c} \sqrt{\frac{k}{\mu}}
+        """)
+        st.markdown("""
+        **Frecuencia vibracional fundamental:**
+        - $\tilde{\nu}$: Frecuencia en cm⁻¹
+        - $k$: Constante de fuerza del enlace
+        - $\mu$: Masa reducida del sistema
+        - $c$: Velocidad de la luz
+        """)
+        
+        st.latex(r"""
+        \mu = \frac{m_1 m_2}{m_1 + m_2}
+        """)
+        st.markdown("""
+        **Masa reducida:**
+        - Determina la frecuencia característica
+        - Enlaces más pesados → frecuencias más bajas
+        - Enlaces más ligeros → frecuencias más altas
+        """)
+    
+    with col2:
+        st.latex(r"""
+        I_{IR} \propto \left( \frac{\partial \mu}{\partial Q} \right)^2
+        """)
+        st.markdown("**Intensidad IR:**")
+        st.markdown("- $I_{IR}$: Intensidad de absorción")
+        st.latex(r"\frac{\partial \boldsymbol{\mu}}{\partial Q} \text{: Cambio del momento dipolar con la coordenada normal}")
+        st.markdown("- Solo modos con cambio de dipolo son activos en IR")
+        
+        st.latex(r"""
+        \Delta \tilde{\nu} = \tilde{\nu}_{calc} - \tilde{\nu}_{exp}
+        """)
+        st.markdown("""
+        **Error calculado-experimental:**
+        - Típicamente 10-30 cm⁻¹ para DFT
+        - Depende del funcional y conjunto de base
+        - Correcciones de escala disponibles
+        """)
+
+    # 2. Interpretación de regiones espectrales
+    st.markdown("### 🔍 Interpretación de Regiones Espectrales")
+    
+    regions_data = [
+        {"Región": "4000-2500 cm⁻¹", "Tipo": "Vibraciones de estiramiento", "Ejemplos": "O-H, N-H, C-H"},
+        {"Región": "2500-2000 cm⁻¹", "Tipo": "Triples enlaces", "Ejemplos": "C≡C, C≡N"},
+        {"Región": "2000-1500 cm⁻¹", "Tipo": "Dobles enlaces", "Ejemplos": "C=O, C=C, C=N"},
+        {"Región": "1500-400 cm⁻¹", "Tipo": "Huella digital", "Ejemplos": "Deformaciones, esqueletos"}
+    ]
+    
+    df_regions = pd.DataFrame(regions_data)
+    st.dataframe(df_regions, use_container_width=True)
+
+    # Obtener datos del espectro IR
+    ir_spectrum_data = get_ir_spectrum_data()
     final_ir_path = Path("modelos/FINAL_ir_spectrum.txt")
 
     if final_ir_path.exists():
@@ -3031,8 +3037,8 @@ def plot_ir_spectrum_comparison(orca_data: pd.DataFrame, molecule_name: str) -> 
                             data_part = parts[1].strip()
                             values = data_part.split()
                             if len(values) >= 3:
-                                freq = float(values[0])  # Frecuencia en cm⁻¹
-                                intensity = float(values[2])  # Intensidad en km/mol
+                                freq = float(values[0])
+                                intensity = float(values[2])
                                 ir_data.append({'mode': mode,
                                                 'frequency': freq,
                                                 'intensity': intensity})
@@ -3043,28 +3049,70 @@ def plot_ir_spectrum_comparison(orca_data: pd.DataFrame, molecule_name: str) -> 
         except Exception as e:
             print(f"Error leyendo datos de espectro IR: {e}")
 
-    # 3. Comparación numérica (modo a modo)
+    # 3. Análisis cuantitativo comparativo
     if ir_spectrum_data is not None and not ir_spectrum_data.empty and not orca_data.empty:
+        st.markdown("### 📊 Análisis Cuantitativo Comparativo")
+        
         merged = pd.merge(
             orca_data, ir_spectrum_data,
             on='mode', how='inner', suffixes=('_orca', '_ir')
         )
+        
         if not merged.empty:
+            # Calcular métricas de calidad
             merged['diff_freq'] = merged['frequency_ir'] - merged['frequency_orca']
             merged['diff_intensity'] = merged['intensity_ir'] - merged['intensity_orca']
-            print("\nComparación numérica ORCA vs FINAL_ir_spectrum.txt:")
-            print(merged[['mode','frequency_orca','frequency_ir','diff_freq',
-                          'intensity_orca','intensity_ir','diff_intensity']])
-        else:
-            print("No hay modos comunes entre ORCA y FINAL_ir_spectrum.txt")
+            
+            # Análisis estadístico
+            mean_diff = merged['diff_freq'].mean()
+            std_diff = merged['diff_freq'].std()
+            max_diff = merged['diff_freq'].abs().max()
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Diferencia promedio", f"{mean_diff:.2f} cm⁻¹")
+                st.metric("Desviación estándar", f"{std_diff:.2f} cm⁻¹")
+            
+            with col2:
+                st.metric("Diferencia máxima", f"{max_diff:.2f} cm⁻¹")
+                st.metric("Número de modos", len(merged))
+            
+            with col3:
+                # Evaluación de calidad
+                if max_diff < 10:
+                    calidad = "✅ Excelente"
+                elif max_diff < 30:
+                    calidad = "⚠️ Buena"
+                elif max_diff < 50:
+                    calidad = "🔍 Aceptable"
+                else:
+                    calidad = "❌ Problemática"
+                
+                st.metric("Calidad del cálculo", calidad)
+            
+            # Mostrar tabla comparativa detallada
+            with st.expander("📋 Tabla comparativa detallada"):
+                comp_df = merged.copy()
+                comp_df['Región'] = comp_df['frequency_orca'].apply(
+                    lambda x: "Alta (4000-2500)" if x > 2500 else 
+                             "Media (2500-1500)" if x > 1500 else "Baja (1500-400)"
+                )
+                comp_df['Actividad IR'] = comp_df['intensity_ir'].apply(
+                    lambda x: "Fuerte" if x > 50 else "Media" if x > 10 else "Débil"
+                )
+                
+                display_cols = ['mode', 'frequency_orca', 'frequency_ir', 'diff_freq', 
+                               'intensity_ir', 'Región', 'Actividad IR']
+                st.dataframe(comp_df[display_cols], use_container_width=True)
 
-    # 4. Crear figura
+    # 4. Crear figura de comparación
     if ir_spectrum_data is not None and not ir_spectrum_data.empty:
         fig = make_subplots(
             rows=2, cols=1,
             subplot_titles=(
-                f'🔢 Frecuencias Fundamentales de {molecule_name}',
-                f'📊 Espectro IR Teórico de {molecule_name}'
+                f'🔢 Frecuencias Fundamentales Calculadas - {molecule_name}',
+                f'📊 Espectro IR Teórico Simulado - {molecule_name}'
             ),
             vertical_spacing=0.15,
             specs=[[{"secondary_y": False}], [{"secondary_y": False}]]
@@ -3072,54 +3120,62 @@ def plot_ir_spectrum_comparison(orca_data: pd.DataFrame, molecule_name: str) -> 
     else:
         fig = make_subplots(
             rows=1, cols=1,
-            subplot_titles=(f'🔢 Frecuencias Fundamentales de {molecule_name}',)
+            subplot_titles=(f'🔢 Frecuencias Fundamentales Calculadas - {molecule_name}',)
         )
 
-    # --- Gráfico superior: modos fundamentales
+    # --- Gráfico superior: modos fundamentales con análisis
     if not orca_data.empty:
         max_intensity = 1.0
+        
+        # Clasificar modos por región espectral
+        colors = {'Alta': 'red', 'Media': 'blue', 'Baja': 'green'}
+        
         for i, (_, row) in enumerate(orca_data.iterrows()):
             freq = row['frequency']
             mode = int(row['mode'])
+            
+            # Determinar región
+            if freq > 2500:
+                region = "Alta"
+                region_desc = "Estiramientos (X-H)"
+            elif freq > 1500:
+                region = "Media" 
+                region_desc = "Dobles enlaces"
+            else:
+                region = "Baja"
+                region_desc = "Deformaciones"
+            
             fig.add_trace(
                 go.Scatter(
                     x=[freq, freq],
                     y=[0, max_intensity],
                     mode='lines',
-                    name=f'Modo {mode}' if i < 3 else None,
-                    showlegend=(i < 3),
-                    line=dict(color='red', width=3),
-                    text=f"Modo {mode}<br>{freq:.1f} cm⁻¹",
+                    name=f'Modo {mode} ({region_desc})',
+                    showlegend=(i < 5),  # Mostrar solo primeros 5 en leyenda
+                    line=dict(color=colors[region], width=3),
+                    text=f"Modo {mode}<br>{freq:.1f} cm⁻¹<br>{region_desc}",
                     hovertemplate="<b>%{text}</b><extra></extra>"
                 ),
                 row=1, col=1
             )
-        fig.add_trace(
-            go.Scatter(
-                x=orca_data['frequency'],
-                y=[max_intensity] * len(orca_data),
-                mode='markers+text',
-                name='Modos Vibracionales',
-                marker=dict(color='darkred', size=12, symbol='triangle-down'),
-                text=[f"Modo {int(r['mode'])}" for _, r in orca_data.iterrows()],
-                textposition="top center",
-                showlegend=True
-            ),
-            row=1, col=1
-        )
 
-    # --- Gráfico inferior: espectro IR teórico
+    # --- Gráfico inferior: espectro IR teórico con análisis
     if ir_spectrum_data is not None and not ir_spectrum_data.empty:
-        # Espectro gaussiano
+        # Espectro gaussiano mejorado
         freq_min = max(200, ir_spectrum_data['frequency'].min() - 300)
         freq_max = ir_spectrum_data['frequency'].max() + 300
         freq_range = np.linspace(freq_min, freq_max, int((freq_max - freq_min) * 2))
-        sigma = 15.0
+        
+        # Ajustar sigma según la región
         spectrum = np.zeros_like(freq_range)
         for _, row in ir_spectrum_data.iterrows():
             freq = row['frequency']
             intensity = row['intensity']
+            
+            # Sigma más pequeño para alta frecuencia, más grande para baja
+            sigma = 8.0 if freq > 2000 else 12.0 if freq > 1000 else 15.0
             spectrum += intensity * np.exp(-0.5 * ((freq_range - freq) / sigma) ** 2)
+        
         if spectrum.max() > 0:
             spectrum /= spectrum.max()
 
@@ -3127,29 +3183,193 @@ def plot_ir_spectrum_comparison(orca_data: pd.DataFrame, molecule_name: str) -> 
             go.Scatter(
                 x=freq_range, y=spectrum,
                 mode='lines', name='Espectro IR Simulado',
-                line=dict(color='blue', width=3),
-                fill='tonexty', fillcolor='rgba(0,0,255,0.2)'
+                line=dict(color='purple', width=3),
+                fill='tozeroy', fillcolor='rgba(128,0,128,0.2)',
+                hovertemplate="Frecuencia: %{x:.1f} cm⁻¹<br>Intensidad: %{y:.3f}<extra></extra>"
             ),
             row=2, col=1
         )
+        
+        # Añadir regiones espectrales como áreas sombreadas
+        regions = [
+            (4000, 2500, 'rgba(255,0,0,0.1)', 'Región Alta (X-H)'),
+            (2500, 1500, 'rgba(0,0,255,0.1)', 'Región Media (C=O, C=C)'),
+            (1500, 400, 'rgba(0,255,0,0.1)', 'Región Baja (Huella digital)')
+        ]
+        
+        for r_min, r_max, color, name in regions:
+            if r_min < freq_max and r_max > freq_min:
+                fig.add_vrect(
+                    x0=r_min, x1=r_max,
+                    fillcolor=color, opacity=0.2,
+                    line_width=0, row=2, col=1,
+                    annotation_text=name, annotation_position="top left"
+                )
 
-    # Layout general
+    # Layout general mejorado
     height = 900 if ir_spectrum_data is not None and not ir_spectrum_data.empty else 500
     fig.update_layout(
-        title=f"Comparación Conceptual: Frecuencias Fundamentales vs Espectro IR Teórico<br><sub>{molecule_name}</sub>",
+        title=f"Análisis Vibracional Completo - {molecule_name}",
         height=height,
         template='plotly_white',
-        hovermode='closest'
+        hovermode='closest',
+        showlegend=True
     )
-    fig.update_xaxes(title_text="Frecuencia (cm⁻¹)", autorange='reversed', row=1, col=1)
-    fig.update_yaxes(title_text="Modos Activos", range=[0, 1.1], row=1, col=1)
+    
+    fig.update_xaxes(
+        title_text="Frecuencia (cm⁻¹)", 
+        autorange='reversed', 
+        row=1, col=1
+    )
+    fig.update_yaxes(
+        title_text="Modos Vibracionales", 
+        range=[0, 1.1], 
+        row=1, col=1
+    )
+    
     if ir_spectrum_data is not None and not ir_spectrum_data.empty:
-        fig.update_xaxes(title_text="Frecuencia (cm⁻¹)", autorange='reversed', row=2, col=1)
-        fig.update_yaxes(title_text="Intensidad Normalizada", range=[0, 1.1], row=2, col=1)
+        fig.update_xaxes(
+            title_text="Frecuencia (cm⁻¹)", 
+            autorange='reversed', 
+            row=2, col=1
+        )
+        fig.update_yaxes(
+            title_text="Intensidad Normalizada", 
+            range=[0, 1.1], 
+            row=2, col=1
+        )
 
     return fig
 
-
+def create_educational_comparison_tables(ir_data: pd.DataFrame, final_ir_data: pd.DataFrame) -> None:
+    """
+    Crea las tablas comparativas educativas en Streamlit con Método Analítico
+    """
+    st.markdown("""
+    ### 📚 **Conceptos Fundamentales de Espectroscopía Vibracional**
+    
+    | **Concepto** | **Definición Matemática** | **Interpretación Física** |
+    |--------------|--------------------------|---------------------------|
+    | **Frecuencia Fundamental** | $\tilde{\\nu} = \\frac{1}{2\pi c} \\sqrt{\\frac{k}{\mu}}$ | Rigidez del enlace y masas involucradas |
+    | **Intensidad IR** | $I \propto \\left(\\frac{\partial \mu}{\partial Q}\\right)^2$ | Cambio del momento dipolar durante la vibración |
+    | **Actividad IR** | $\\frac{\partial \mu}{\partial Q} \\neq 0$ | La vibración debe cambiar el dipolo molecular |
+    | **Espectro Simulado** | $I(\tilde{\\nu}) = \sum_i I_i e^{-(\\tilde{\\nu}-\\tilde{\\nu}_i)^2/2\sigma^2}$ | Convolución gaussiana de modos discretos |
+    """)
+    
+    # Análisis de regiones espectrales
+    if not ir_data.empty:        
+        # Interpretación química
+        st.markdown("### ⚗️ Interpretación Química de las Frecuencias")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🔢 Frecuencias Fundamentales")
+            st.caption("Análisis de modos vibracionales calculados")
+            
+            analysis_data = []
+            for _, row in ir_data.iterrows():
+                freq = row['frequency']
+                intensity = row['intensity']
+                
+                if freq > 3000:
+                    interpretation = "Estiramiento de enlaces X-H"
+                    examples = "O-H, N-H, C-H"
+                elif freq > 2000:
+                    interpretation = "Triples enlaces y acumulados"
+                    examples = "C≡C, C≡N, X≡X"
+                elif freq > 1500:
+                    interpretation = "Dobles enlaces característicos"
+                    examples = "C=O, C=C, C=N"
+                elif freq > 1000:
+                    interpretation = "Deformaciones y esqueletos"
+                    examples = "CH₂, CH₃, anillos"
+                else:
+                    interpretation = "Vibraciones de bajo frecuencia"
+                    examples = "Torsiones, lattice"
+                
+                analysis_data.append({
+                    'Modo': int(row['mode']),
+                    'Frecuencia (cm⁻¹)': round(freq, 1),
+                    'Interpretación': interpretation,
+                    'Ejemplos típicos': examples,
+                    'Región': 'Alta' if freq > 2500 else 'Media' if freq > 1500 else 'Baja'
+                })
+            
+            analysis_df = pd.DataFrame(analysis_data)
+            st.dataframe(analysis_df, hide_index=True)
+    
+        with col2:
+            st.subheader("📊 Actividad IR y Intensidades")
+            st.caption("Predicción de bandas observables experimentalmente")
+            
+            if final_ir_data is not None and not final_ir_data.empty:
+                activity_data = []
+                for _, row in final_ir_data.iterrows():
+                    intensity = row['intensity']
+                    
+                    if intensity > 50:
+                        strength = "Muy fuerte"
+                        observable = "✅ Muy observable"
+                    elif intensity > 20:
+                        strength = "Fuerte" 
+                        observable = "✅ Observable"
+                    elif intensity > 5:
+                        strength = "Media"
+                        observable = "⚠️ Débilmente observable"
+                    elif intensity > 1:
+                        strength = "Débil"
+                        observable = "❌ Difícil de observar"
+                    else:
+                        strength = "Muy débil"
+                        observable = "❌ No observable"
+                    
+                    activity_data.append({
+                        'Modo': int(row['mode']),
+                        'Frecuencia (cm⁻¹)': round(row['frequency'], 1),
+                        'Intensidad (km/mol)': round(intensity, 1),
+                        'Fuerza': strength,
+                        'Observabilidad': observable
+                    })
+                
+                activity_df = pd.DataFrame(activity_data)
+                st.dataframe(activity_df, hide_index=True)
+                
+                # Resumen estadístico
+                strong_bands = len([x for x in activity_data if x['Intensidad (km/mol)'] > 20])
+                total_bands = len(activity_data)
+                
+                st.metric("Bandas fuertes (>20 km/mol)", f"{strong_bands}/{total_bands}")
+                st.metric("Bandas observables (>5 km/mol)", 
+                         f"{len([x for x in activity_data if x['Intensidad (km/mol)'] > 5])}/{total_bands}")
+    
+    # Conclusión analítica
+    st.markdown("### 🎯 Conclusión del Análisis Vibracional")
+    
+    if not ir_data.empty:
+        # Calcular métricas generales
+        freq_range = ir_data['frequency'].max() - ir_data['frequency'].min()
+        avg_freq = ir_data['frequency'].mean()
+        
+        conclusions = []
+        
+        if freq_range > 2000:
+            conclusions.append("✅ **Amplio rango vibracional** - Molécula con diversos tipos de enlaces")
+        else:
+            conclusions.append("🔍 **Rango vibracional moderado** - Enlaces similares")
+        
+        if avg_freq > 2000:
+            conclusions.append("⚡ **Alta frecuencia promedio** - Enlaces ligeros y/o rígidos")
+        else:
+            conclusions.append("⚖️ **Frecuencia promedio media/baja** - Masas atómicas significativas")
+        
+        if final_ir_data is not None:
+            active_modes = len(final_ir_data[final_ir_data['intensity'] > 1])
+            total_modes = len(final_ir_data)
+            conclusions.append(f"📊 **Actividad IR:** {active_modes}/{total_modes} modos activos")
+        
+        for conclusion in conclusions:
+            st.write(conclusion)
 
 def plot_ir_spectrum(data: pd.DataFrame) -> go.Figure:
     """
@@ -3285,83 +3505,3 @@ def get_ir_spectrum_data() -> pd.DataFrame:
     except Exception as e:
         print(f"Error leyendo espectro IR: {e}")
         return None
-
-def create_educational_comparison_tables(ir_data: pd.DataFrame, final_ir_data: pd.DataFrame) -> None:
-    """
-    Crea las tablas comparativas educativas en Streamlit
-    """
-    st.markdown("""
-    ### 📚 **Conceptos Fundamentales**
-    
-    | **Concepto** | **Qué representa** | **Dónde se ve** |
-    |--------------|-------------------|-----------------|
-    | **Frecuencias Fundamentales** | Valores numéricos exactos de modos vibracionales | Líneas verticales rojas (gráfico superior) |
-    | **Espectro IR Teórico** | Simulación de cómo se vería experimentalmente | Curva azul continua (gráfico inferior) |
-    | **Intensidad IR** | Qué tan fuerte es la absorción de cada modo | Altura de los picos en el espectro |
-    | **Modos Activos** | Vibraciones que absorben radiación infrarroja | Picos visibles en el espectro teórico |
-    """)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🔢 Frecuencias Fundamentales")
-        st.caption("Modos vibracionales calculados por ORCA")
-        
-        freq_df = ir_data.copy()
-        freq_df['frequency'] = freq_df['frequency'].round(1)
-        freq_df.columns = ['Modo', 'Frecuencia (cm⁻¹)', 'Peso Relativo']
-        freq_df['Tipo'] = 'Modo Vibracional'
-        freq_df['Descripción'] = freq_df.apply(
-            lambda x: f"Vibración a {x['Frecuencia (cm⁻¹)']} cm⁻¹", axis=1
-        )
-        st.dataframe(freq_df[['Modo', 'Frecuencia (cm⁻¹)', 'Tipo', 'Descripción']], hide_index=True)
-    
-    with col2:
-        st.subheader("📊 Espectro IR Teórico")
-        st.caption("Intensidades de absorción infrarroja")
-        
-        if final_ir_data is not None and not final_ir_data.empty:
-            ir_spec_data = []
-            for _, row in final_ir_data.iterrows():
-                intensity = row['intensity']
-                
-                if intensity > 50:
-                    intensity_class = "Fuerte"
-                elif intensity > 10:
-                    intensity_class = "Media"
-                else:
-                    intensity_class = "Débil"
-                
-                ir_spec_data.append({
-                    'Modo': int(row['mode']),
-                    'Frecuencia (cm⁻¹)': round(row['frequency'], 1),
-                    'Intensidad (km/mol)': round(intensity, 1),
-                    'Clasificación': intensity_class,
-                    'Actividad IR': 'Activo' if intensity > 1 else 'Muy débil'
-                })
-            
-            ir_df = pd.DataFrame(ir_spec_data)
-            st.dataframe(ir_df, hide_index=True)
-            
-            # Análisis comparativo
-            st.subheader("📈 Análisis Conceptual")
-            st.markdown("""
-            **🔍 Correspondencia entre conceptos:**
-            - **Frecuencia:** Los valores deben coincidir entre ambas tablas
-            - **Intensidad:** Solo visible en el espectro IR (no en frecuencias fundamentales)
-            - **Actividad IR:** Modos con intensidad >1 km/mol son observables experimentalmente
-            """)
-            
-            if len(ir_df) == len(freq_df):
-                corresp_df = pd.DataFrame({
-                    'Modo': ir_df['Modo'],
-                    'Freq. Fundamental': freq_df['Frecuencia (cm⁻¹)'].values,
-                    'Freq. Espectro IR': ir_df['Frecuencia (cm⁻¹)'],
-                    'Diferencia': (freq_df['Frecuencia (cm⁻¹)'].values - ir_df['Frecuencia (cm⁻¹)']).round(2),
-                    'Intensidad IR': ir_df['Intensidad (km/mol)'],
-                    'Observabilidad': ir_df['Actividad IR']
-                })
-                st.dataframe(corresp_df, hide_index=True)
-                st.metric("Concordancia frecuencias", f"{(corresp_df['Diferencia'].abs() < 1).sum()}/{len(corresp_df)} modos")
-        else:
-            st.info("No se encontraron datos de espectro IR")
