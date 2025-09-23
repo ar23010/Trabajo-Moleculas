@@ -2847,40 +2847,35 @@ def dibujar_analisis_poblacion(molecule_name):
     ax3.legend()
     
     # 4. Análisis orbital (valores > 0.001) (SOLICITADA)
-    orbital_data_available = False
-    for method in ['mulliken', 'loewdin']:
-        if formatted_data[method]['orbital_charges']:
-            orbital_data_available = True
-            break
+    orbital_data_mulliken = formatted_data['mulliken']['orbital_charges']
+    orbital_data_loewdin = formatted_data['loewdin']['orbital_charges']
     
-    if orbital_data_available:
-        # Encontrar el primer átomo con datos orbitales para mostrar
+    if orbital_data_mulliken or orbital_data_loewdin:
+        # Obtener el primer átomo que tenga datos orbitales
         sample_atom = None
-        sample_orbitals = {}
+        sample_orbitals = {'mulliken': {}, 'loewdin': {}}
         
-        for atom in atoms:
-            for method in ['mulliken', 'loewdin']:
-                orbital_charges = formatted_data[method]['orbital_charges']
-                for atom_key in orbital_charges.keys():
-                    if atom.lower() in atom_key.lower() or atom_key.split()[0] == '0':  # Primer átomo
-                        sample_atom = atom_key
-                        sample_orbitals = {
-                            'mulliken': orbital_charges.get(atom_key, {}),
-                            'loewdin': orbital_charges.get(atom_key, {})
-                        }
-                        break
-                if sample_atom:
-                    break
-            if sample_atom:
-                break
+        # Primero intentar con Mulliken
+        if orbital_data_mulliken:
+            sample_atom = list(orbital_data_mulliken.keys())[0]
+            sample_orbitals['mulliken'] = orbital_data_mulliken[sample_atom]
         
-        if sample_atom and sample_orbitals:
-            # Obtener orbitales significativos (valores > 0.001)
+        # Si también hay datos Löwdin para el mismo átomo
+        if orbital_data_loewdin and sample_atom in orbital_data_loewdin:
+            sample_orbitals['loewdin'] = orbital_data_loewdin[sample_atom]
+        elif orbital_data_loewdin and not sample_atom:
+            # Si no había Mulliken, usar el primer Löwdin
+            sample_atom = list(orbital_data_loewdin.keys())[0]
+            sample_orbitals['loewdin'] = orbital_data_loewdin[sample_atom]
+        
+        if sample_atom and (sample_orbitals['mulliken'] or sample_orbitals['loewdin']):
+            # Obtener todos los orbitales disponibles
             all_orbitals = set()
             for method in ['mulliken', 'loewdin']:
-                for orbital, value in sample_orbitals[method].items():
-                    if abs(value) > 0.001:  # Solo valores significativos
-                        all_orbitals.add(orbital)
+                if sample_orbitals[method]:
+                    for orbital, value in sample_orbitals[method].items():
+                        if abs(value) > 0.001:  # Solo valores significativos
+                            all_orbitals.add(orbital)
             
             if all_orbitals:
                 orbital_names = sorted(list(all_orbitals))
@@ -2895,27 +2890,60 @@ def dibujar_analisis_poblacion(molecule_name):
                 ax4.set_ylabel('Población Electrónica')
                 ax4.set_title(f'Población Orbital - {sample_atom} (valores > 0.001)')
                 ax4.set_xticks(x_orb)
-                ax4.set_xticklabels(orbital_names, rotation=45)
+                ax4.set_xticklabels([orb.replace('_', ' ') for orb in orbital_names], rotation=45, ha='right')
                 ax4.legend()
                 ax4.grid(True, alpha=0.3, axis='y')
                 
-                for bar in bars_orb1 + bars_orb2:
-                    height = bar.get_height()
-                    if abs(height) > 0.001:
-                        ax4.annotate(f'{height:.3f}',
-                                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                                    xytext=(0, 3),
-                                    textcoords="offset points",
-                                    ha='center', va='bottom', fontsize=8)
+                # Añadir valores en las barras
+                for bars, values in zip([bars_orb1, bars_orb2], [mulliken_orbital_values, loewdin_orbital_values]):
+                    for bar, value in zip(bars, values):
+                        if abs(value) > 0.001:
+                            height = bar.get_height()
+                            ax4.annotate(f'{value:.3f}',
+                                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                                        xytext=(0, 3 if height >= 0 else -15),
+                                        textcoords="offset points",
+                                        ha='center', va='bottom' if height >= 0 else 'top', 
+                                        fontsize=8, rotation=0)
+                
+                # Mostrar información del átomo seleccionado
+                st.info(f"Mostrando población orbital para: **{sample_atom}**")
+                
+                # Crear tabla detallada de orbitales
+                orbital_table_data = []
+                for orbital in orbital_names:
+                    m_val = sample_orbitals['mulliken'].get(orbital, 0.0)
+                    l_val = sample_orbitals['loewdin'].get(orbital, 0.0)
+                    diff = abs(m_val - l_val)
+                    orbital_table_data.append({
+                        'Orbital': orbital.replace('_', ' '),
+                        'Mulliken': f"{m_val:.4f}",
+                        'Löwdin': f"{l_val:.4f}",
+                        'Diferencia': f"{diff:.4f}"
+                    })
+                
+                if orbital_table_data:
+                    st.subheader(f"📊 Población Orbital Detallada - {sample_atom}")
+                    df_orbital = pd.DataFrame(orbital_table_data)
+                    st.dataframe(df_orbital, use_container_width=True)
             else:
-                ax4.text(0.5, 0.5, f'No hay datos orbitales significativos\n(valores > 0.001) para {sample_atom}', 
+                ax4.text(0.5, 0.5, f'No hay orbitales significativos\n(valores > 0.001) para {sample_atom}', 
                         ha='center', va='center', transform=ax4.transAxes, fontsize=12)
+                ax4.set_xlabel('Tipo de Orbital')
+                ax4.set_ylabel('Población Electrónica')
+                ax4.set_title(f'Población Orbital - {sample_atom}')
         else:
-            ax4.text(0.5, 0.5, 'No se encontraron datos orbitales detallados', 
+            ax4.text(0.5, 0.5, 'No se encontraron datos orbitales válidos', 
                     ha='center', va='center', transform=ax4.transAxes, fontsize=12)
+            ax4.set_xlabel('Tipo de Orbital')
+            ax4.set_ylabel('Población Electrónica')
+            ax4.set_title('Población Orbital')
     else:
         ax4.text(0.5, 0.5, 'No hay datos de población orbital disponibles', 
                 ha='center', va='center', transform=ax4.transAxes, fontsize=12)
+        ax4.set_xlabel('Tipo de Orbital')
+        ax4.set_ylabel('Población Electrónica')
+        ax4.set_title('Población Orbital')
     
     plt.tight_layout()
     st.pyplot(fig)
